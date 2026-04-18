@@ -1,0 +1,17 @@
+<main class="public-landing">
+  <div class="public-landing-title">OathTemplate</div>
+
+  <div class="public-landing-center">
+    <section class="public-landing-content">
+      <h1>Access your workspace.</h1>
+      <p class="public-landing-copy">
+        Sign in or create an account.
+      </p>
+
+      <div class="public-landing-actions">
+        <%= link_to "Login", new_user_session_path, class: "public-login-button" %>
+        <%= link_to "Register", new_user_registration_path, class: "public-login-button public-secondary-button" %>
+      </div>
+    </section>
+  </div>
+</main>

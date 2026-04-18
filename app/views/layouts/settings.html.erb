@@ -1,0 +1,201 @@
+<%
+  profile_name = current_user.name.presence || current_user.email_address.to_s.split("@").first.to_s.humanize
+  profile_tokens = profile_name.scan(/[A-Za-z0-9]+/)
+  profile_initials = if profile_tokens.size >= 2
+    "#{profile_tokens[0][0]}#{profile_tokens[1][0]}"
+  else
+    profile_tokens.first.to_s[0, 2]
+  end
+  profile_initials = profile_initials.upcase.presence || "OT"
+  settings_section = controller_path.start_with?("settings/")
+  theme_preference = current_user.theme_preference.presence_in(User::THEME_PREFERENCES) || "system"
+  icon = ->(name) { File.read(Rails.root.join("public/icons/#{name}.svg")).html_safe }
+%>
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= content_for(:title) || (settings_section ? "Settings - OathTemplate" : "OathTemplate") %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="turbo-prefetch" content="false">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
+
+    <%= stylesheet_link_tag "logged_in", "data-turbo-track": "reload" %>
+
+    <script type="module">
+      import * as Turbo from "https://cdn.jsdelivr.net/npm/@hotwired/turbo@8/+esm";
+      import { Application, Controller } from "https://cdn.jsdelivr.net/npm/@hotwired/stimulus@3.2.2/+esm";
+
+      window.Turbo ||= Turbo;
+      window.OathTemplateStimulus ||= Application.start();
+
+      if (!window.OathTemplateSidebarControllerRegistered) {
+        window.OathTemplateStimulus.register("sidebar", class extends Controller {
+          static targets = ["item"];
+
+          connect() {
+            this.frameLoaded = () => this.syncFromLocation();
+            document.addEventListener("turbo:frame-load", this.frameLoaded);
+          }
+
+          disconnect() {
+            document.removeEventListener("turbo:frame-load", this.frameLoaded);
+          }
+
+          select(event) {
+            const item = event.currentTarget;
+
+            this.itemTargets.forEach((target) => target.classList.remove("active"));
+            item.classList.add("active");
+          }
+
+          syncFromLocation() {
+            const path = window.location.pathname;
+            const key = path.startsWith("/settings") ? "settings" : "dashboard";
+            const item = this.itemTargets.find((target) => target.dataset.sidebarKey === key);
+
+            if (!item || item.classList.contains("active")) return;
+
+            this.itemTargets.forEach((target) => target.classList.remove("active"));
+            item.classList.add("active");
+          }
+        });
+
+        window.OathTemplateStimulus.register("profile-menu", class extends Controller {
+          connect() {
+            this.closeOnOutsidePointerDown = (event) => {
+              if (this.element.open && !this.element.contains(event.target)) {
+                this.element.open = false;
+              }
+            };
+
+            this.closeOnEscape = (event) => {
+              if (event.key === "Escape") this.element.open = false;
+            };
+
+            this.closeOnFrameLoad = () => {
+              this.element.open = false;
+            };
+
+            document.addEventListener("pointerdown", this.closeOnOutsidePointerDown, true);
+            document.addEventListener("keydown", this.closeOnEscape);
+            document.addEventListener("turbo:frame-load", this.closeOnFrameLoad);
+          }
+
+          disconnect() {
+            document.removeEventListener("pointerdown", this.closeOnOutsidePointerDown, true);
+            document.removeEventListener("keydown", this.closeOnEscape);
+            document.removeEventListener("turbo:frame-load", this.closeOnFrameLoad);
+          }
+        });
+
+        window.OathTemplateStimulus.register("theme-preview", class extends Controller {
+          static values = { initial: String };
+
+          connect() {
+            this.submitted = false;
+          }
+
+          change(event) {
+            if (!event.target.matches("input[type='radio'][name='user[theme_preference]']")) return;
+
+            this.apply(event.target.value);
+          }
+
+          submit() {
+            this.submitted = true;
+          }
+
+          disconnect() {
+            if (!this.submitted) this.apply(this.initialValue || "system");
+          }
+
+          apply(theme) {
+            const nextTheme = ["system", "light", "dark"].includes(theme) ? theme : "system";
+
+            document.body.classList.remove("theme-system", "theme-light", "theme-dark");
+            document.body.classList.add(`theme-${nextTheme}`);
+          }
+        });
+
+        window.OathTemplateSidebarControllerRegistered = true;
+      }
+    </script>
+  </head>
+
+  <body class="logged-in-body theme-<%= theme_preference %>">
+    <% if overlay_flash_messages.any? %>
+      <div class="app-flash-stack" aria-live="polite" aria-atomic="true">
+        <% overlay_flash_messages.each do |flash_message| %>
+          <div class="app-flash app-flash-<%= flash_message[:tone] %>">
+            <%= flash_message[:message] %>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+
+    <div class="logged-in-shell" data-controller="sidebar">
+      <aside class="logged-in-sidebar">
+        <div class="logged-in-sidebar-inner">
+          <div>
+            <div class="logged-in-brand">
+              <span class="logged-in-brand-mark" aria-hidden="true">
+                <%= icon.call("brand") %>
+              </span>
+              <span>OathTemplate</span>
+            </div>
+
+            <nav class="logged-in-sidebar-nav" aria-label="Primary navigation">
+              <p class="logged-in-nav-label">general</p>
+
+              <%= link_to overview_path, class: "logged-in-sidebar-link #{'active' if controller_name == 'overview'}", data: { sidebar_target: "item", sidebar_key: "dashboard", action: "pointerdown->sidebar#select", turbo_frame: "app_content", turbo_action: "advance" } do %>
+                <span class="logged-in-sidebar-icon" aria-hidden="true">
+                  <%= icon.call("dashboard") %>
+                </span>
+                <span>Dashboard</span>
+              <% end %>
+            </nav>
+          </div>
+
+          <div class="logged-in-sidebar-footer">
+            <details class="logged-in-profile-menu" data-controller="profile-menu">
+              <summary class="logged-in-profile-summary">
+                <div class="logged-in-profile-avatar" aria-hidden="true"><%= profile_initials %></div>
+
+                <div class="logged-in-profile-copy">
+                  <p class="logged-in-profile-name"><%= profile_name %></p>
+                  <p class="logged-in-profile-email"><%= current_user.email_address %></p>
+                </div>
+              </summary>
+
+              <div class="logged-in-context-menu">
+                <% if settings_access? %>
+                  <%= link_to "Settings", settings_path, class: "logged-in-context-link", data: { turbo_frame: "app_content", turbo_action: "advance", turbo_prefetch: false } %>
+                <% end %>
+
+                <%= link_to "Personal settings", edit_settings_user_path(current_user), class: "logged-in-context-link", data: { turbo_frame: "app_content", turbo_action: "advance", turbo_prefetch: false } %>
+
+                <%= button_to "Log out", destroy_user_session_path, method: :delete, class: "logged-in-context-logout" %>
+              </div>
+            </details>
+          </div>
+        </div>
+      </aside>
+
+      <main class="logged-in-main">
+        <%= turbo_frame_tag "app_content" do %>
+          <% if settings_section && settings_access? %>
+            <nav class="settings-subnav" aria-label="Settings navigation">
+              <%= link_to "Users", settings_users_path, class: "settings-subnav-link #{'active' if controller_name == 'users'}" %>
+            </nav>
+          <% end %>
+
+          <%= yield %>
+        <% end %>
+      </main>
+    </div>
+  </body>
+</html>

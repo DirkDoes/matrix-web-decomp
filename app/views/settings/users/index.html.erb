@@ -1,0 +1,37 @@
+<div class="settings-header">
+  <h1>Users</h1>
+</div>
+
+<section class="settings-section">
+  <% if @users.any? %>
+    <table class="settings-table">
+      <thead>
+        <tr>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @users.each do |user| %>
+          <tr>
+            <td><%= user.email_address %></td>
+            <td>
+              <span class="badge badge-<%= user.role %>"><%= user.role.capitalize %></span>
+            </td>
+            <td class="actions">
+              <%= link_to "Edit", edit_settings_user_path(user), class: "btn btn-small btn-secondary" %>
+              <% if owner? && user != current_user %>
+                <%= button_to "Remove", settings_user_path(user), method: :delete,
+                    data: { turbo_confirm: "Are you sure you want to remove #{user.email_address}?" },
+                    class: "btn btn-small btn-danger" %>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <p class="empty-state">No users found.</p>
+  <% end %>
+</section>

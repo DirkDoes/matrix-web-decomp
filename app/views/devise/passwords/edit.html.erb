@@ -1,0 +1,26 @@
+<main class="public-auth">
+  <%= link_to "OathTemplate", root_path, class: "public-auth-title" %>
+
+  <div class="public-auth-center">
+    <section class="public-auth-card">
+      <h1>Change Password</h1>
+
+      <%= form_with model: resource, as: resource_name, url: password_path(resource_name), method: :put, class: "auth-form" do |f| %>
+        <%= render "devise/shared/error_messages", resource: resource %>
+        <%= f.hidden_field :reset_password_token %>
+
+        <div class="form-group">
+          <%= f.label :password, "New password" %>
+          <%= f.password_field :password, required: true, autofocus: true, autocomplete: "new-password" %>
+        </div>
+
+        <div class="form-group">
+          <%= f.label :password_confirmation, "Confirm new password" %>
+          <%= f.password_field :password_confirmation, required: true, autocomplete: "new-password" %>
+        </div>
+
+        <%= f.submit "Change password", class: "btn btn-primary btn-full" %>
+      <% end %>
+    </section>
+  </div>
+</main>

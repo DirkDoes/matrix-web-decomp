@@ -1,0 +1,23 @@
+<main class="public-auth">
+  <%= link_to "OathTemplate", root_path, class: "public-auth-title" %>
+
+  <div class="public-auth-center">
+    <section class="public-auth-card">
+      <h1>Reset Password</h1>
+      <p class="auth-subtitle">Enter your email and we will send reset instructions.</p>
+
+      <%= form_with model: resource, as: resource_name, url: password_path(resource_name), method: :post, class: "auth-form" do |f| %>
+        <%= render "devise/shared/error_messages", resource: resource %>
+
+        <div class="form-group">
+          <%= f.label :email %>
+          <%= f.email_field :email, required: true, autofocus: true, autocomplete: "email", placeholder: "you@example.com" %>
+        </div>
+
+        <%= f.submit "Send reset instructions", class: "btn btn-primary btn-full" %>
+      <% end %>
+
+      <p class="auth-hint"><%= link_to "Back to login", new_user_session_path %></p>
+    </section>
+  </div>
+</main>

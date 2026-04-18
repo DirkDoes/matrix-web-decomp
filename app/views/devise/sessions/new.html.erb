@@ -1,0 +1,36 @@
+<main class="public-auth">
+  <% google_login_enabled = ENV["GOOGLE_CLIENT_ID"].present? && ENV["GOOGLE_CLIENT_SECRET"].present? %>
+
+  <%= link_to "OathTemplate", root_path, class: "public-auth-title" %>
+
+  <div class="public-auth-center">
+    <section class="public-auth-card">
+      <h1>Login</h1>
+
+      <% if google_login_enabled %>
+        <%= button_to "Login with Google", user_google_oauth2_omniauth_authorize_path, method: :post, class: "btn btn-secondary btn-full public-google-button", data: { turbo: false } %>
+        <div class="public-auth-divider"><span>or</span></div>
+      <% end %>
+
+      <%= form_with model: resource, as: resource_name, url: session_path(resource_name), class: "auth-form" do |f| %>
+        <% if devise_mapping.rememberable? %>
+          <%= f.hidden_field :remember_me, value: "1" %>
+        <% end %>
+
+        <div class="form-group">
+          <%= f.label :email %>
+          <%= f.email_field :email, required: true, autofocus: true, autocomplete: "email", placeholder: "you@example.com" %>
+        </div>
+
+        <div class="form-group">
+          <%= f.label :password %>
+          <%= f.password_field :password, required: true, autocomplete: "current-password" %>
+        </div>
+
+        <%= f.submit "Login", class: "btn btn-primary btn-full" %>
+      <% end %>
+
+      <p class="auth-hint"><%= link_to "Create an account", new_user_registration_path %> / <%= link_to "Forgot password?", new_user_password_path %></p>
+    </section>
+  </div>
+</main>

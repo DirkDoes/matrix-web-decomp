@@ -1,0 +1,44 @@
+<main class="public-auth">
+  <% google_login_enabled = ENV["GOOGLE_CLIENT_ID"].present? && ENV["GOOGLE_CLIENT_SECRET"].present? %>
+
+  <%= link_to "OathTemplate", root_path, class: "public-auth-title" %>
+
+  <div class="public-auth-center">
+    <section class="public-auth-card">
+      <h1>Create Account</h1>
+
+      <% if google_login_enabled %>
+        <%= button_to "Sign up with Google", user_google_oauth2_omniauth_authorize_path, method: :post, class: "btn btn-secondary btn-full public-google-button", data: { turbo: false } %>
+        <div class="public-auth-divider"><span>or</span></div>
+      <% end %>
+
+      <%= form_with model: resource, as: resource_name, url: registration_path(resource_name), class: "auth-form" do |f| %>
+        <%= render "devise/shared/error_messages", resource: resource %>
+
+        <div class="form-group">
+          <%= f.label :name %>
+          <%= f.text_field :name, autocomplete: "name", placeholder: "Your name" %>
+        </div>
+
+        <div class="form-group">
+          <%= f.label :email %>
+          <%= f.email_field :email, required: true, autofocus: true, autocomplete: "email", placeholder: "you@example.com" %>
+        </div>
+
+        <div class="form-group">
+          <%= f.label :password %>
+          <%= f.password_field :password, required: true, autocomplete: "new-password" %>
+        </div>
+
+        <div class="form-group">
+          <%= f.label :password_confirmation %>
+          <%= f.password_field :password_confirmation, required: true, autocomplete: "new-password" %>
+        </div>
+
+        <%= f.submit "Create account", class: "btn btn-primary btn-full" %>
+      <% end %>
+
+      <p class="auth-hint"><%= link_to "Already have an account?", new_user_session_path %></p>
+    </section>
+  </div>
+</main>

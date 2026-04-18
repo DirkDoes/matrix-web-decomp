@@ -34,16 +34,10 @@ function Invoke-Compose {
   }
 }
 
-if (-not (Test-Path ".env") -and (Test-Path "template.env")) {
-  Copy-Item "template.env" ".env"
-  Write-Host "Created .env from template.env"
+if (-not (Test-Path ".env") -and (Test-Path ".env.example")) {
+  Copy-Item ".env.example" ".env"
+  Write-Host "Created .env from .env.example"
 }
 
-Write-Host "Starting database container..."
-Invoke-Compose @("up", "-d", "db")
-
-Write-Host "Preparing database..."
-Invoke-Compose @("run", "--rm", "web", "bundle", "exec", "rails", "db:prepare")
-
-Write-Host "Starting app on http://localhost:3000 ..."
-Invoke-Compose @("up", "--build", "web")
+Write-Host "Starting Detrix with Docker Compose ..."
+Invoke-Compose @("up", "--build")

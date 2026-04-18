@@ -1,8 +1,17 @@
-#!/bin/bash -e
+#!/bin/bash
 
-# If running the rails server then create or migrate existing database
-if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
-  ./bin/rails db:prepare
+set -euo pipefail
+
+rm -f /rails/tmp/pids/server.pid
+
+# The Docker dev setup mounts a persistent bundle volume over /usr/local/bundle.
+# Install gems on container start if that volume is blank or stale.
+bundle check || bundle install
+
+if [ "$#" -ge 4 ] && [ "$1" = "bundle" ] && [ "$2" = "exec" ] && [ "$3" = "rails" ] && [ "$4" = "server" ]; then
+  bundle exec rails db:prepare
+elif [ "$#" -ge 2 ] && { [ "$1" = "./bin/rails" ] || [ "$1" = "bin/rails" ]; } && [ "$2" = "server" ]; then
+  "$1" db:prepare
 fi
 
-exec "${@}"
+exec "$@"

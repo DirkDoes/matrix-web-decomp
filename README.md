@@ -1,68 +1,31 @@
-# OathTemplate
+# Detrix
 
-Rails starter template with Devise auth, Docker-based local development, and Kamal deployment scaffolding.
+## Kamal deployment setup
 
-## Local setup
-
-1. Copy `template.env` to `.env` if you are not using the provided Windows helper scripts.
-2. Start the local stack with `docker compose up -d db` and `docker compose up --build web`, or use `run-dev-win.bash` / `run-dev-win.ps1`.
-3. Prepare the database with `docker compose run --rm web bundle exec rails db:prepare`.
-
-## Template setup checklist
-
-After copying this template for a new app, update the placeholders before deploying:
-
-1. Rename the template values in `config/deploy.yml`.
-   Set `service`, `image`, server IPs, registry username, SSH user/key, and the `proxy.hosts` / `APP_HOST` values.
-2. Adjust database naming if you change the service name.
-   The template defaults use `oath_template` as the PostgreSQL user and `oath_template_production` as the production database prefix in `config/database.yml`, `config/deploy.yml`, and `.kamal/secrets.example`.
+1. Generate Rails credentials if `config/master.key` does not exist yet:
+   `bin/rails credentials:edit`
+2. Update [`config/deploy.yml`](config/deploy.yml) with your real deployment values:
+   - `image`
+   - `servers.web.hosts`
+   - `proxy.hosts`
+   - `env.clear.APP_HOST`
+   - `registry.username`
+   - `ssh.user`
+   - `ssh.keys`
 3. Copy `.kamal/secrets.example` to `.kamal/secrets`.
-4. Generate a new Rails master key and encrypted credentials file.
+4. Add the Rails master key from `config/master.key` to `.kamal/secrets` as `RAILS_MASTER_KEY`.
+5. Generate a PostgreSQL password and place it in `.kamal/secrets` as `POSTGRES_PASSWORD`.
+   You can generate one with `ruby -rsecurerandom -e "puts SecureRandom.hex(24)"` or `openssl rand -hex 24`.
+6. Fill the remaining secret values in `.kamal/secrets`:
+   - `KAMAL_REGISTRY_PASSWORD`
+   - `DATABASE_URL`
+   - `CACHE_DATABASE_URL`
+   - `QUEUE_DATABASE_URL`
+   - `CABLE_DATABASE_URL`
+   - `SMTP_ADDRESS`
+   - `SMTP_USERNAME`
+   - `SMTP_PASSWORD`
+   - `GOOGLE_CLIENT_ID`
+   - `GOOGLE_CLIENT_SECRET`
 
-If you want a completely fresh credentials setup, remove the old files first:
-
-```bash
-rm -f config/master.key config/credentials.yml.enc
-```
-
-Then run Rails credentials editing. This creates a new `config/master.key` if one does not exist:
-
-```bash
-EDITOR=true bin/rails credentials:edit
-```
-
-On Windows PowerShell, use:
-
-```powershell
-$env:EDITOR = "notepad"
-bin/rails credentials:edit
-```
-
-After that, copy the generated master key into `.kamal/secrets` as the value of `RAILS_MASTER_KEY`:
-
-```dotenv
-RAILS_MASTER_KEY=your-generated-master-key
-```
-
-## Manual Kamal secrets setup
-
-You also need a PostgreSQL password and matching database URLs in `.kamal/secrets`.
-
-Generate a password with either of these:
-
-```bash
-ruby -rsecurerandom -e "puts SecureRandom.hex(24)"
-```
-
-```bash
-openssl rand -hex 24
-```
-
-Then fill `.kamal/secrets`:
-If you changed the service name or database username, keep these values aligned:
-
-1. `config/deploy.yml`
-2. `config/database.yml`
-3. `.kamal/secrets`
-
-The accessory database host in the template is `oath-template-db`, which is derived from the default Kamal service name `oath-template`.
+The sample database URLs already match the Detrix service name. If you change `service` in [`config/deploy.yml`](config/deploy.yml), keep the database host and database names in `.kamal/secrets` aligned with it. The default accessory hostname derived from this setup is `detrix-db`.

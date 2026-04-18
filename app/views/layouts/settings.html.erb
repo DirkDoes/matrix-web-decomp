@@ -6,7 +6,7 @@
   else
     profile_tokens.first.to_s[0, 2]
   end
-  profile_initials = profile_initials.upcase.presence || "OT"
+  profile_initials = profile_initials.upcase.presence || "DE"
   settings_section = controller_path.start_with?("settings/")
   theme_preference = current_user.theme_preference.presence_in(User::THEME_PREFERENCES) || "system"
   icon = ->(name) { File.read(Rails.root.join("public/icons/#{name}.svg")).html_safe }
@@ -15,7 +15,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title><%= content_for(:title) || (settings_section ? "Settings - OathTemplate" : "OathTemplate") %></title>
+    <title><%= content_for(:title) || (settings_section ? "Settings - Detrix" : "Detrix") %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="turbo-prefetch" content="false">
     <%= csrf_meta_tags %>
@@ -30,10 +30,10 @@
       import { Application, Controller } from "https://cdn.jsdelivr.net/npm/@hotwired/stimulus@3.2.2/+esm";
 
       window.Turbo ||= Turbo;
-      window.OathTemplateStimulus ||= Application.start();
+      window.DetrixStimulus ||= Application.start();
 
-      if (!window.OathTemplateSidebarControllerRegistered) {
-        window.OathTemplateStimulus.register("sidebar", class extends Controller {
+      if (!window.DetrixSidebarControllerRegistered) {
+        window.DetrixStimulus.register("sidebar", class extends Controller {
           static targets = ["item"];
 
           connect() {
@@ -64,7 +64,7 @@
           }
         });
 
-        window.OathTemplateStimulus.register("profile-menu", class extends Controller {
+        window.DetrixStimulus.register("profile-menu", class extends Controller {
           connect() {
             this.closeOnOutsidePointerDown = (event) => {
               if (this.element.open && !this.element.contains(event.target)) {
@@ -92,7 +92,7 @@
           }
         });
 
-        window.OathTemplateStimulus.register("theme-preview", class extends Controller {
+        window.DetrixStimulus.register("theme-preview", class extends Controller {
           static values = { initial: String };
 
           connect() {
@@ -121,7 +121,7 @@
           }
         });
 
-        window.OathTemplateSidebarControllerRegistered = true;
+        window.DetrixSidebarControllerRegistered = true;
       }
     </script>
   </head>
@@ -145,7 +145,7 @@
               <span class="logged-in-brand-mark" aria-hidden="true">
                 <%= icon.call("brand") %>
               </span>
-              <span>OathTemplate</span>
+              <span>Detrix</span>
             </div>
 
             <nav class="logged-in-sidebar-nav" aria-label="Primary navigation">

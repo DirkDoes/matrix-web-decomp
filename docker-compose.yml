@@ -2,28 +2,36 @@ services:
   db:
     image: postgres:15
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-oath_template}
+      POSTGRES_USER: ${POSTGRES_USER:-detrix}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
-      POSTGRES_DB: ${POSTGRES_DB:-oath_template_development}
+      POSTGRES_DB: ${POSTGRES_DB:-detrix_development}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-detrix} -d ${POSTGRES_DB:-detrix_development}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
 
   web:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    command: bash -c "rm -f tmp/pids/server.pid && bundle exec rails server -b '0.0.0.0'"
+    command: bundle exec rails server -b 0.0.0.0
     volumes:
       - .:/rails
       - bundle_cache:/usr/local/bundle
     ports:
-      - "3000:3000"
+      - "${WEB_HOST_PORT:-3000}:3000"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgres://oath_template:password@db:5432/oath_template_development}
+      APP_HOST: ${APP_HOST:-localhost}
+      APP_PROTOCOL: ${APP_PROTOCOL:-http}
+      DATABASE_URL: ${DATABASE_URL:-postgres://detrix:password@db:5432/detrix_development}
       RAILS_ENV: development
       # Email configuration - set these to send real emails
       SMTP_ADDRESS: ${SMTP_ADDRESS:-smtp.gmail.com}
@@ -32,10 +40,12 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      MAILER_FROM: ${MAILER_FROM:-noreply@example.com}
+      MAILER_FROM: ${MAILER_FROM:-noreply@detrix.local}
     stdin_open: true
     tty: true
 
 volumes:
   postgres_data:
+    name: detrix_local_postgres_data
   bundle_cache:
+    name: detrix_local_bundle_cache

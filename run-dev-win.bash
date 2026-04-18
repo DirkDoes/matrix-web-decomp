@@ -19,16 +19,10 @@ else
   exit 1
 fi
 
-if [ ! -f .env ] && [ -f template.env ]; then
-  cp template.env .env
-  echo "Created .env from template.env"
+if [ ! -f .env ] && [ -f .env.example ]; then
+  cp .env.example .env
+  echo "Created .env from .env.example"
 fi
 
-echo "Starting database container..."
-"${COMPOSE_CMD[@]}" up -d db
-
-echo "Preparing database..."
-"${COMPOSE_CMD[@]}" run --rm web bundle exec rails db:prepare
-
-echo "Starting app on http://localhost:3000 ..."
-"${COMPOSE_CMD[@]}" up --build web
+echo "Starting Detrix with Docker Compose ..."
+"${COMPOSE_CMD[@]}" up --build

@@ -1,8 +1,8 @@
 # Name of your application. Used to uniquely configure containers.
-service: oath-template
+service: detrix
 
 # Name of the container image.
-image: your-dockerhub-username/oath-template
+image: your-dockerhub-username/detrix
 
 # Deploy to these servers.
 servers:
@@ -109,8 +109,8 @@ accessories:
     port: "127.0.0.1:5432:5432"
     env:
       clear:
-        POSTGRES_DB: oath_template_production
-        POSTGRES_USER: oath_template
+        POSTGRES_DB: detrix_production
+        POSTGRES_USER: detrix
       secret:
         - POSTGRES_PASSWORD
     directories:

@@ -1,14 +1,14 @@
-# Name of your application. Used to uniquely configure containers.
+# Name of your application. Keep this unique across apps on the same server.
 service: detrix
 
 # Name of the container image.
-image: your-dockerhub-username/detrix
+image: wanttobeeme/detrix
 
 # Deploy to these servers.
 servers:
   web:
     hosts:
-      - your-server-ip
+      - 178.104.77.220
     cmd: "./bin/rails server"
   # job:
   #   hosts:
@@ -22,8 +22,7 @@ servers:
 proxy:
   ssl: true
   hosts:
-    - example.com
-    - www.example.com
+    - m.lattrix.com
   # Proxy connects to your container on port 80 by default.
   app_port: 3000
   healthcheck:
@@ -34,7 +33,7 @@ registry:
   # server: localhost:5555
   # Specify the registry server, if you're not using Docker Hub
   # server: registry.digitalocean.com / ghcr.io / ...
-  username: your-registry-username
+  username: wanttobeeme
 
   # Always use an access token rather than real password (pulled from .kamal/secrets).
   password:
@@ -51,7 +50,7 @@ builder:
 # Inject ENV variables into containers (secrets come from .kamal/secrets).
 env:
   clear:
-    APP_HOST: "example.com"
+    APP_HOST: "m.lattrix.com"
     APP_PROTOCOL: "https"
     RAILS_ENV: production
     RAILS_LOG_LEVEL: info
@@ -77,9 +76,9 @@ env:
 # Use a different ssh user than root
 #
 ssh:
-  user: deploy
+  user: root
   keys:
-    - ~/.ssh/your-ssh-key
+    - C:/Users/roose/.ssh/hetzner_ssh
   keys_only: true
 
 # Use a persistent storage volume.
@@ -105,8 +104,8 @@ ssh:
 accessories:
   db:
     image: postgres:15
-    host: your-server-ip
-    port: "127.0.0.1:5432:5432"
+    host: 178.104.77.220
+    port: "127.0.0.1:5433:5432"
     env:
       clear:
         POSTGRES_DB: detrix_production

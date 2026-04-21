@@ -12,3 +12,11 @@ The role of this file is to describe common mistakes and confusion points that a
 - Public static vector assets belong under `public/icons/`. The sidebar icons are stored there as separate SVG files and loaded by the layout instead of being written directly into the view.
 - Keep custom interactive behavior in JavaScript assets instead of inline scripts when possible. The split verification-code input behavior lives in `app/assets/javascripts/verification_code.js`.
 - The authenticated layout keeps navigation structure in `app/views/layouts/settings.html.erb`, but styling and SVG source are separated into their own asset files.
+
+### Shared-Host Kamal Service Naming
+- This repo may be deployed alongside a different Kamal app on the same server. Keep this app's `config/deploy.yml` `service` value distinct from the other app's service name, even if the public domain is related.
+- Reusing the other app's service name will collide with Kamal-managed container names, network names, and accessory hostnames. In the current setup, `service: detrix` intentionally serves `m.lattrix.com` while the separate root-domain app uses a different service name.
+
+### WSL SSH Key Paths For Kamal
+- When running Kamal from WSL, do not point `ssh.keys` at a private key on `/mnt/c/...`. OpenSSH in WSL can reject mounted Windows key files because their permissions appear too open.
+- Use a WSL-local copy such as `/home/<user>/.ssh/<keyname>` and `chmod 600` it before deploying.

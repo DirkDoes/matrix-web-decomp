@@ -1,0 +1,46 @@
+<% content_for :title, "Matrices - Detrix" %>
+
+<section class="matrices-page" aria-labelledby="matrices-title">
+  <header class="matrices-page-header">
+    <h1 id="matrices-title">Matrices</h1>
+  </header>
+
+  <div class="matrix-card-grid">
+    <% @base_matrices.each do |base_matrix| %>
+      <article class="matrix-card">
+        <details class="matrix-card-menu" data-controller="profile-menu">
+          <summary class="matrix-card-menu-button" aria-label="Open matrix actions">
+            <span></span>
+            <span></span>
+            <span></span>
+          </summary>
+
+          <div class="matrix-card-menu-panel">
+            <%= link_to "Edit", edit_base_matrix_path(base_matrix), class: "matrix-card-menu-link", data: { turbo_frame: "app_content", turbo_action: "advance" } %>
+            <%= button_to "Delete", base_matrix_path(base_matrix), method: :delete, class: "matrix-card-menu-button-link", form: { data: { turbo_confirm: "Delete this matrix?" } } %>
+          </div>
+        </details>
+
+        <%= link_to base_matrix_path(base_matrix), class: "matrix-card-link", data: { turbo_frame: "app_content", turbo_action: "advance" } do %>
+          <div class="matrix-card-preview">
+            <canvas
+              data-controller="matrix-preview"
+              data-matrix-preview-x-count-value="<%= base_matrix.x_count %>"
+              data-matrix-preview-y-count-value="<%= base_matrix.y_count %>"
+              data-matrix-preview-z-count-value="<%= base_matrix.z_count %>"
+              aria-label="<%= base_matrix.title %> preview"></canvas>
+          </div>
+
+          <div class="matrix-card-body">
+            <h2><%= base_matrix.title %></h2>
+            <p><%= base_matrix.size_label %></p>
+          </div>
+        <% end %>
+      </article>
+    <% end %>
+
+    <%= link_to new_base_matrix_path, class: "matrix-card matrix-card-create", data: { turbo_frame: "app_content", turbo_action: "advance" }, aria: { label: "Create matrix" } do %>
+      <span aria-hidden="true">+</span>
+    <% end %>
+  </div>
+</section>

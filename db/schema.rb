@@ -10,9 +10,21 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2025_12_27_130124) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_27_000100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "base_matrices", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.jsonb "matrix", default: [], null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.integer "x_count", null: false
+    t.integer "y_count", null: false
+    t.integer "z_count", null: false
+    t.index ["user_id"], name: "index_base_matrices_on_user_id"
+  end
 
   create_table "users", force: :cascade do |t|
     t.datetime "created_at", null: false
@@ -31,4 +43,6 @@ ActiveRecord::Schema[8.1].define(version: 2025_12_27_130124) do
     t.index ["provider", "uid"], name: "index_users_on_provider_and_uid", unique: true
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
   end
+
+  add_foreign_key "base_matrices", "users"
 end

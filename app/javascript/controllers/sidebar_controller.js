@@ -18,7 +18,7 @@ export default class extends Controller {
 
   syncFromLocation() {
     const path = window.location.pathname;
-    const key = path.startsWith("/settings") ? "settings" : "dashboard";
+    const key = this.keyForPath(path);
     const item = this.itemTargets.find((target) => target.dataset.sidebarKey === key);
 
     if (!item || item.classList.contains("active")) return;
@@ -30,5 +30,12 @@ export default class extends Controller {
     this.itemTargets.forEach((target) => {
       target.classList.toggle("active", target.dataset.sidebarKey === key);
     });
+  }
+
+  keyForPath(path) {
+    if (path.startsWith("/settings")) return "settings";
+    if (path.startsWith("/matrices")) return "matrices";
+
+    return "dashboard";
   }
 }

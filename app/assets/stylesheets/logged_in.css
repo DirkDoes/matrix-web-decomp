@@ -832,6 +832,200 @@ body.logged-in-body {
   height: 100%;
 }
 
+.matrices-page,
+.matrix-form-page {
+  max-width: 1180px;
+}
+
+.matrices-page-header,
+.matrix-form-header {
+  margin-bottom: 1.8rem;
+}
+
+.matrices-page-header h1,
+.matrix-form-header h1 {
+  color: var(--app-shell-text);
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1;
+}
+
+.matrix-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15.5rem, 15.5rem));
+  gap: 1.6rem;
+  align-items: start;
+}
+
+.matrix-card {
+  position: relative;
+  min-height: 17rem;
+  border: 2px solid #d7d7d7;
+  border-radius: 1.4rem;
+  background: #111111;
+  color: #f4f4f4;
+  overflow: visible;
+}
+
+.matrix-card-link {
+  height: 100%;
+  display: grid;
+  grid-template-rows: 11.2rem auto;
+  color: inherit;
+  text-decoration: none;
+}
+
+.matrix-card-preview {
+  min-height: 0;
+  padding: 0.65rem 0.9rem 0;
+}
+
+.matrix-card-preview canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.matrix-card-body {
+  padding: 0.7rem 1rem 1rem;
+  border-top: 2px solid #d7d7d7;
+}
+
+.matrix-card-body h2 {
+  margin: 0;
+  color: #f4f4f4;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.matrix-card-body p {
+  margin-top: 0.55rem;
+  color: #f4f4f4;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.matrix-card-menu {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  z-index: 3;
+}
+
+.matrix-card-menu-button {
+  list-style: none;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  grid-template-columns: repeat(3, 0.22rem);
+  gap: 0.16rem;
+  border-radius: 999px;
+  color: #f4f4f4;
+  cursor: pointer;
+}
+
+.matrix-card-menu-button::-webkit-details-marker {
+  display: none;
+}
+
+.matrix-card-menu-button span {
+  width: 0.22rem;
+  height: 0.22rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.matrix-card-menu-panel {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  width: 8.5rem;
+  padding: 0.35rem;
+  border: 1px solid var(--app-shell-border);
+  border-radius: 0.75rem;
+  background: var(--app-shell-surface);
+  color: var(--app-shell-text);
+}
+
+.matrix-card-menu-link,
+.matrix-card-menu-button-link {
+  width: 100%;
+  display: block;
+  padding: 0.65rem 0.7rem;
+  border: 0;
+  background: transparent;
+  color: var(--app-shell-text);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.matrix-card-menu-link:hover,
+.matrix-card-menu-button-link:hover {
+  background: var(--app-shell-surface-soft);
+}
+
+.matrix-card-menu-panel form {
+  margin: 0;
+}
+
+.matrix-card-create {
+  display: grid;
+  place-items: center;
+  color: #d7d7d7;
+  text-decoration: none;
+}
+
+.matrix-card-create span {
+  font-size: 8rem;
+  font-weight: 200;
+  line-height: 1;
+}
+
+.matrix-form-grid {
+  display: grid;
+  grid-template-columns: minmax(18rem, 24rem) minmax(18rem, 1fr);
+  gap: 2rem;
+  align-items: start;
+}
+
+.matrix-form-fields {
+  display: grid;
+  gap: 1.2rem;
+}
+
+.matrix-dimension-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.matrix-form-actions {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+}
+
+.matrix-form-preview {
+  width: min(34rem, 100%);
+  aspect-ratio: 1;
+}
+
+.matrix-form-preview canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.form-errors {
+  margin-bottom: 1rem;
+  color: var(--app-shell-danger);
+  font-weight: 700;
+}
+
 @media (max-width: 960px) {
   .logged-in-shell {
     grid-template-columns: 1fr;
@@ -868,6 +1062,10 @@ body.logged-in-body {
     grid-template-columns: 1fr;
   }
 
+  .matrix-form-grid {
+    grid-template-columns: 1fr;
+  }
+
   .logged-in-main {
     padding: 1.5rem;
   }
@@ -900,5 +1098,13 @@ body.logged-in-body {
 
   .dashboard-page-header h1 {
     font-size: clamp(1.7rem, 9vw, 2.4rem);
+  }
+
+  .matrix-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .matrix-card {
+    min-height: 16rem;
   }
 }

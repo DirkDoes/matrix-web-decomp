@@ -13,6 +13,8 @@ class User < ApplicationRecord
 
   enum :role, { viewer: 0, admin: 1, owner: 2 }
 
+  has_many :base_matrices, dependent: :destroy
+
   validates :theme_preference, inclusion: { in: THEME_PREFERENCES }
   validate :owner_must_remain, if: :owner_role_removed?
 

@@ -8,15 +8,18 @@ const CUBE_SPACING = 0.96;
 const AXIS_MOVE_DAMPING = 18;
 const ORTHOGRAPHIC_VIEW_SIZE = 7;
 const DEFAULT_CAMERA_DISTANCE = 10;
-const DEFAULT_CAMERA_ZOOM = 1;
-const MIN_CAMERA_ZOOM = 0.72;
+const MIN_CAMERA_ZOOM = 0.5;
 const MAX_CAMERA_ZOOM = 1.45;
 const ZOOM_SPEED = 0.0025;
-const WHITE_COORDINATES = [-1, 0, 1];
-const AXIS_COORDINATES = [-1, 0, 1];
+const DEFAULT_MATRIX_COUNT = 3;
 
 export default class extends Controller {
   static targets = ["canvas"];
+  static values = {
+    xCount: Number,
+    yCount: Number,
+    zCount: Number
+  };
 
   connect() {
     this.dragging = false;
@@ -24,6 +27,9 @@ export default class extends Controller {
     this.previousPointer = { x: 0, y: 0 };
     this.pendingVerticalDrag = 0;
     this.clock = new THREE.Clock();
+    this.xCoordinates = this.coordinateRange(this.countValue("x"));
+    this.yCoordinates = this.coordinateRange(this.countValue("y"));
+    this.zCoordinates = this.coordinateRange(this.countValue("z"));
 
     this.setupScene();
     this.setupEvents();
@@ -60,7 +66,7 @@ export default class extends Controller {
       100
     );
     this.camera.position.set(0, 0, DEFAULT_CAMERA_DISTANCE);
-    this.camera.zoom = DEFAULT_CAMERA_ZOOM;
+    this.camera.zoom = this.defaultCameraZoom();
     this.camera.updateProjectionMatrix();
 
     this.renderer = new THREE.WebGLRenderer({
@@ -96,9 +102,9 @@ export default class extends Controller {
   }
 
   addWhiteCubes() {
-    WHITE_COORDINATES.forEach((x) => {
-      WHITE_COORDINATES.forEach((y) => {
-        WHITE_COORDINATES.forEach((z) => {
+    this.xCoordinates.forEach((x) => {
+      this.yCoordinates.forEach((y) => {
+        this.zCoordinates.forEach((z) => {
           this.addCube(this.whiteMaterial, x, y, z);
         });
       });
@@ -106,9 +112,15 @@ export default class extends Controller {
   }
 
   addAxisCubes() {
-    AXIS_COORDINATES.forEach(() => {
+    this.yCoordinates.forEach(() => {
       this.yAxisCubes.push(this.addAxisCube(this.limeMaterial, 0, 0, 0));
+    });
+
+    this.xCoordinates.forEach(() => {
       this.xAxisCubes.push(this.addAxisCube(this.yellowMaterial, 0, 0, 0));
+    });
+
+    this.zCoordinates.forEach(() => {
       this.zAxisCubes.push(this.addAxisCube(this.limeMaterial, 0, 0, 0));
     });
   }
@@ -142,17 +154,20 @@ export default class extends Controller {
   updateAxisPositions(immediate = false) {
     const closestCorner = this.closestCorner();
     const yAxisCorner = this.leftmostVisibleVerticalCorner(closestCorner);
+    const outsideX = this.outsideCoordinate("x");
+    const outsideY = this.outsideCoordinate("y");
+    const outsideZ = this.outsideCoordinate("z");
 
     this.yAxisCubes.forEach((cubelet, index) => {
-      this.setAxisTarget(cubelet, yAxisCorner.x * 2, AXIS_COORDINATES[index], yAxisCorner.z * 2, immediate);
+      this.setAxisTarget(cubelet, yAxisCorner.x * outsideX, this.yCoordinates[index], yAxisCorner.z * outsideZ, immediate);
     });
 
     this.xAxisCubes.forEach((cubelet, index) => {
-      this.setAxisTarget(cubelet, AXIS_COORDINATES[index], -2, closestCorner.z * 2, immediate);
+      this.setAxisTarget(cubelet, this.xCoordinates[index], -outsideY, closestCorner.z * outsideZ, immediate);
     });
 
     this.zAxisCubes.forEach((cubelet, index) => {
-      this.setAxisTarget(cubelet, closestCorner.x * 2, -2, AXIS_COORDINATES[index], immediate);
+      this.setAxisTarget(cubelet, closestCorner.x * outsideX, -outsideY, this.zCoordinates[index], immediate);
     });
   }
 
@@ -222,6 +237,37 @@ export default class extends Controller {
 
   rotatedScreenX(corner, rotationY) {
     return corner.x * Math.cos(rotationY) + corner.z * Math.sin(rotationY);
+  }
+
+  coordinateRange(count) {
+    const centerOffset = (count - 1) / 2;
+
+    return Array.from({ length: count }, (_value, index) => index - centerOffset);
+  }
+
+  countValue(axis) {
+    const value = this[`${axis}CountValue`];
+
+    return Number.isInteger(value) && value > 0 ? value : DEFAULT_MATRIX_COUNT;
+  }
+
+  outsideCoordinate(axis) {
+    const coordinates = this[`${axis}Coordinates`];
+    const furthestCoordinate = Math.max(...coordinates.map((coordinate) => Math.abs(coordinate)));
+
+    return furthestCoordinate + 1;
+  }
+
+  defaultCameraZoom() {
+    const furthestCoordinate = Math.max(
+      this.outsideCoordinate("x"),
+      this.outsideCoordinate("y"),
+      this.outsideCoordinate("z")
+    );
+    const objectRadius = furthestCoordinate * CUBE_SPACING + 0.4;
+    const fittedZoom = ORTHOGRAPHIC_VIEW_SIZE / (objectRadius * 2.2);
+
+    return THREE.MathUtils.clamp(fittedZoom, MIN_CAMERA_ZOOM, 1);
   }
 
   setupEvents() {

@@ -5,6 +5,11 @@ const DRAG_ROTATION_SPEED = 0.01;
 const MAX_VERTICAL_ROTATION = Math.PI / 2;
 const VERTICAL_DRAG_THRESHOLD = 8;
 const CUBE_SPACING = 0.96;
+const AXIS_MOVE_DAMPING = 18;
+const DEFAULT_CAMERA_DISTANCE = 8.8;
+const MIN_CAMERA_DISTANCE = 6.2;
+const MAX_CAMERA_DISTANCE = 12;
+const ZOOM_SPEED = 0.006;
 const WHITE_COORDINATES = [-1, 0, 1];
 const AXIS_COORDINATES = [-1, 0, 1];
 
@@ -16,6 +21,7 @@ export default class extends Controller {
     this.pointerId = null;
     this.previousPointer = { x: 0, y: 0 };
     this.pendingVerticalDrag = 0;
+    this.clock = new THREE.Clock();
 
     this.setupScene();
     this.setupEvents();
@@ -28,9 +34,10 @@ export default class extends Controller {
     this.resizeObserver?.disconnect();
 
     this.element.removeEventListener("pointerdown", this.onPointerDown);
-    this.element.removeEventListener("pointermove", this.onPointerMove);
-    this.element.removeEventListener("pointerup", this.onPointerUp);
-    this.element.removeEventListener("pointercancel", this.onPointerUp);
+      this.element.removeEventListener("pointermove", this.onPointerMove);
+      this.element.removeEventListener("pointerup", this.onPointerUp);
+      this.element.removeEventListener("pointercancel", this.onPointerUp);
+      this.element.removeEventListener("wheel", this.onWheel);
 
     this.geometry?.dispose();
     this.whiteMaterial?.dispose();
@@ -43,7 +50,7 @@ export default class extends Controller {
     this.scene = new THREE.Scene();
 
     this.camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
-    this.camera.position.set(0, 0, 8.8);
+    this.camera.position.set(0, 0, DEFAULT_CAMERA_DISTANCE);
 
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvasTarget,
@@ -61,12 +68,13 @@ export default class extends Controller {
     this.yAxisCubes = [];
     this.xAxisCubes = [];
     this.zAxisCubes = [];
+    this.axisCubes = [];
 
     this.addWhiteCubes();
     this.addAxisCubes();
 
     this.cube.rotation.set(-0.35, 0.55, 0);
-    this.updateAxisPositions();
+    this.updateAxisPositions(true);
     this.scene.add(this.cube);
 
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 2.1));
@@ -88,9 +96,9 @@ export default class extends Controller {
 
   addAxisCubes() {
     AXIS_COORDINATES.forEach(() => {
-      this.yAxisCubes.push(this.addCube(this.limeMaterial, 0, 0, 0));
-      this.xAxisCubes.push(this.addCube(this.yellowMaterial, 0, 0, 0));
-      this.zAxisCubes.push(this.addCube(this.limeMaterial, 0, 0, 0));
+      this.yAxisCubes.push(this.addAxisCube(this.limeMaterial, 0, 0, 0));
+      this.xAxisCubes.push(this.addAxisCube(this.yellowMaterial, 0, 0, 0));
+      this.zAxisCubes.push(this.addAxisCube(this.limeMaterial, 0, 0, 0));
     });
   }
 
@@ -103,6 +111,15 @@ export default class extends Controller {
     return cubelet;
   }
 
+  addAxisCube(material, x, y, z) {
+    const cubelet = this.addCube(material, x, y, z);
+
+    cubelet.userData.targetPosition = cubelet.position.clone();
+    this.axisCubes.push(cubelet);
+
+    return cubelet;
+  }
+
   positionCube(cubelet, x, y, z) {
     cubelet.position.set(
       x * CUBE_SPACING,
@@ -111,20 +128,40 @@ export default class extends Controller {
     );
   }
 
-  updateAxisPositions() {
+  updateAxisPositions(immediate = false) {
     const closestCorner = this.closestCorner();
     const yAxisCorner = this.leftmostVisibleVerticalCorner(closestCorner);
 
     this.yAxisCubes.forEach((cubelet, index) => {
-      this.positionCube(cubelet, yAxisCorner.x * 2, AXIS_COORDINATES[index], yAxisCorner.z * 2);
+      this.setAxisTarget(cubelet, yAxisCorner.x * 2, AXIS_COORDINATES[index], yAxisCorner.z * 2, immediate);
     });
 
     this.xAxisCubes.forEach((cubelet, index) => {
-      this.positionCube(cubelet, AXIS_COORDINATES[index], -2, closestCorner.z * 2);
+      this.setAxisTarget(cubelet, AXIS_COORDINATES[index], -2, closestCorner.z * 2, immediate);
     });
 
     this.zAxisCubes.forEach((cubelet, index) => {
-      this.positionCube(cubelet, closestCorner.x * 2, -2, AXIS_COORDINATES[index]);
+      this.setAxisTarget(cubelet, closestCorner.x * 2, -2, AXIS_COORDINATES[index], immediate);
+    });
+  }
+
+  setAxisTarget(cubelet, x, y, z, immediate = false) {
+    const targetPosition = cubelet.userData.targetPosition;
+
+    targetPosition.set(
+      x * CUBE_SPACING,
+      y * CUBE_SPACING,
+      z * CUBE_SPACING
+    );
+
+    if (immediate) cubelet.position.copy(targetPosition);
+  }
+
+  updateAnimatedAxisPositions(delta) {
+    this.axisCubes.forEach((cubelet) => {
+      cubelet.position.x = THREE.MathUtils.damp(cubelet.position.x, cubelet.userData.targetPosition.x, AXIS_MOVE_DAMPING, delta);
+      cubelet.position.y = THREE.MathUtils.damp(cubelet.position.y, cubelet.userData.targetPosition.y, AXIS_MOVE_DAMPING, delta);
+      cubelet.position.z = THREE.MathUtils.damp(cubelet.position.z, cubelet.userData.targetPosition.z, AXIS_MOVE_DAMPING, delta);
     });
   }
 
@@ -208,15 +245,21 @@ export default class extends Controller {
       if (this.element.hasPointerCapture(event.pointerId)) {
         this.element.releasePointerCapture(event.pointerId);
       }
-    };
+      };
 
-    this.element.addEventListener("pointerdown", this.onPointerDown);
-    this.element.addEventListener("pointermove", this.onPointerMove);
-    this.element.addEventListener("pointerup", this.onPointerUp);
-    this.element.addEventListener("pointercancel", this.onPointerUp);
+      this.onWheel = (event) => {
+        event.preventDefault();
+        this.zoom(event.deltaY);
+      };
 
-    this.resizeObserver = new ResizeObserver(() => this.resize());
-    this.resizeObserver.observe(this.element);
+      this.element.addEventListener("pointerdown", this.onPointerDown);
+      this.element.addEventListener("pointermove", this.onPointerMove);
+      this.element.addEventListener("pointerup", this.onPointerUp);
+      this.element.addEventListener("pointercancel", this.onPointerUp);
+      this.element.addEventListener("wheel", this.onWheel, { passive: false });
+
+      this.resizeObserver = new ResizeObserver(() => this.resize());
+      this.resizeObserver.observe(this.element);
   }
 
   applyVerticalDrag(deltaY) {
@@ -235,6 +278,14 @@ export default class extends Controller {
     this.pendingVerticalDrag = Math.sign(this.pendingVerticalDrag) * VERTICAL_DRAG_THRESHOLD;
   }
 
+  zoom(deltaY) {
+    this.camera.position.z = THREE.MathUtils.clamp(
+      this.camera.position.z + deltaY * ZOOM_SPEED,
+      MIN_CAMERA_DISTANCE,
+      MAX_CAMERA_DISTANCE
+    );
+  }
+
   resize() {
     const { width, height } = this.element.getBoundingClientRect();
     const nextWidth = Math.max(1, Math.floor(width));
@@ -246,6 +297,7 @@ export default class extends Controller {
   }
 
   animate() {
+    this.updateAnimatedAxisPositions(this.clock.getDelta());
     this.renderer.render(this.scene, this.camera);
     this.animationFrame = requestAnimationFrame(() => this.animate());
   }

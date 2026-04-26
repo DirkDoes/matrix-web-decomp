@@ -6,10 +6,12 @@ const MAX_VERTICAL_ROTATION = Math.PI / 2;
 const VERTICAL_DRAG_THRESHOLD = 8;
 const CUBE_SPACING = 0.96;
 const AXIS_MOVE_DAMPING = 18;
-const DEFAULT_CAMERA_DISTANCE = 8.8;
-const MIN_CAMERA_DISTANCE = 6.2;
-const MAX_CAMERA_DISTANCE = 12;
-const ZOOM_SPEED = 0.006;
+const ORTHOGRAPHIC_VIEW_SIZE = 7;
+const DEFAULT_CAMERA_DISTANCE = 10;
+const DEFAULT_CAMERA_ZOOM = 1;
+const MIN_CAMERA_ZOOM = 0.72;
+const MAX_CAMERA_ZOOM = 1.45;
+const ZOOM_SPEED = 0.0025;
 const WHITE_COORDINATES = [-1, 0, 1];
 const AXIS_COORDINATES = [-1, 0, 1];
 
@@ -49,8 +51,17 @@ export default class extends Controller {
   setupScene() {
     this.scene = new THREE.Scene();
 
-    this.camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
+    this.camera = new THREE.OrthographicCamera(
+      -ORTHOGRAPHIC_VIEW_SIZE / 2,
+      ORTHOGRAPHIC_VIEW_SIZE / 2,
+      ORTHOGRAPHIC_VIEW_SIZE / 2,
+      -ORTHOGRAPHIC_VIEW_SIZE / 2,
+      0.1,
+      100
+    );
     this.camera.position.set(0, 0, DEFAULT_CAMERA_DISTANCE);
+    this.camera.zoom = DEFAULT_CAMERA_ZOOM;
+    this.camera.updateProjectionMatrix();
 
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvasTarget,
@@ -279,11 +290,12 @@ export default class extends Controller {
   }
 
   zoom(deltaY) {
-    this.camera.position.z = THREE.MathUtils.clamp(
-      this.camera.position.z + deltaY * ZOOM_SPEED,
-      MIN_CAMERA_DISTANCE,
-      MAX_CAMERA_DISTANCE
+    this.camera.zoom = THREE.MathUtils.clamp(
+      this.camera.zoom - deltaY * ZOOM_SPEED,
+      MIN_CAMERA_ZOOM,
+      MAX_CAMERA_ZOOM
     );
+    this.camera.updateProjectionMatrix();
   }
 
   resize() {
@@ -292,7 +304,12 @@ export default class extends Controller {
     const nextHeight = Math.max(1, Math.floor(height));
 
     this.renderer.setSize(nextWidth, nextHeight, false);
-    this.camera.aspect = nextWidth / nextHeight;
+    const aspect = nextWidth / nextHeight;
+
+    this.camera.left = -ORTHOGRAPHIC_VIEW_SIZE * aspect / 2;
+    this.camera.right = ORTHOGRAPHIC_VIEW_SIZE * aspect / 2;
+    this.camera.top = ORTHOGRAPHIC_VIEW_SIZE / 2;
+    this.camera.bottom = -ORTHOGRAPHIC_VIEW_SIZE / 2;
     this.camera.updateProjectionMatrix();
   }
 

@@ -20,3 +20,7 @@ The role of this file is to describe common mistakes and confusion points that a
 ### WSL SSH Key Paths For Kamal
 - When running Kamal from WSL, do not point `ssh.keys` at a private key on `/mnt/c/...`. OpenSSH in WSL can reject mounted Windows key files because their permissions appear too open.
 - Use a WSL-local copy such as `/home/<user>/.ssh/<keyname>` and `chmod 600` it before deploying.
+
+### Importmap Files May Need To Be Created
+- The app includes `importmap-rails`, but the repo may not have the usual generated files yet, such as `config/importmap.rb` or `bin/importmap`.
+- If moving JavaScript into `app/javascript`, create or verify `config/importmap.rb` and load the entrypoint with `javascript_importmap_tags` instead of assuming the importmap installer has already been run.

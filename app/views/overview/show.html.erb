@@ -1,39 +1,5 @@
-<section class="dashboard-page">
-  <header class="dashboard-page-header">
-    <p class="dashboard-page-kicker">Dashboard</p>
-    <h1>Welcome back, <%= current_user.name %>.</h1>
-    <p class="dashboard-page-copy">
-      The logged-in experience now uses the new left sidebar shell, with settings access available only to admins and owners.
-    </p>
-  </header>
-
-  <div class="dashboard-grid">
-    <section class="dashboard-section">
-      <h2>Current user</h2>
-
-      <dl class="dashboard-details">
-        <div>
-          <dt>Name</dt>
-          <dd><%= current_user.name %></dd>
-        </div>
-
-        <div>
-          <dt>Email</dt>
-          <dd><%= current_user.email_address %></dd>
-        </div>
-
-        <div>
-          <dt>Role</dt>
-          <dd><span class="badge badge-<%= current_user.role %>"><%= current_user.role.capitalize %></span></dd>
-        </div>
-      </dl>
-    </section>
-
-    <section class="dashboard-section is-accent">
-      <h2>Sidebar state</h2>
-      <p>
-        Dashboard is wired, and the avatar always falls back to initials instead of an uploaded image.
-      </p>
-    </section>
+<section class="dashboard-cube-page" aria-label="Interactive cube">
+  <div class="dashboard-cube-stage" data-controller="rotating-cube">
+    <canvas class="dashboard-cube-canvas" data-rotating-cube-target="canvas" aria-label="Draggable 3D cube"></canvas>
   </div>
 </section>

@@ -10,6 +10,15 @@
   settings_section = controller_path.start_with?("settings/")
   theme_preference = current_user.theme_preference.presence_in(User::THEME_PREFERENCES) || "system"
   icon = ->(name) { File.read(Rails.root.join("public/icons/#{name}.svg")).html_safe }
+  primary_nav_items = [
+    {
+      label: "Dashboard",
+      path: overview_path,
+      key: "dashboard",
+      active: controller_name == "overview",
+      icon: "dashboard"
+    }
+  ]
 %>
 
 <!DOCTYPE html>
@@ -24,106 +33,7 @@
     <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
 
     <%= stylesheet_link_tag "logged_in", "data-turbo-track": "reload" %>
-
-    <script type="module">
-      import * as Turbo from "https://cdn.jsdelivr.net/npm/@hotwired/turbo@8/+esm";
-      import { Application, Controller } from "https://cdn.jsdelivr.net/npm/@hotwired/stimulus@3.2.2/+esm";
-
-      window.Turbo ||= Turbo;
-      window.DetrixStimulus ||= Application.start();
-
-      if (!window.DetrixSidebarControllerRegistered) {
-        window.DetrixStimulus.register("sidebar", class extends Controller {
-          static targets = ["item"];
-
-          connect() {
-            this.frameLoaded = () => this.syncFromLocation();
-            document.addEventListener("turbo:frame-load", this.frameLoaded);
-          }
-
-          disconnect() {
-            document.removeEventListener("turbo:frame-load", this.frameLoaded);
-          }
-
-          select(event) {
-            const item = event.currentTarget;
-
-            this.itemTargets.forEach((target) => target.classList.remove("active"));
-            item.classList.add("active");
-          }
-
-          syncFromLocation() {
-            const path = window.location.pathname;
-            const key = path.startsWith("/settings") ? "settings" : "dashboard";
-            const item = this.itemTargets.find((target) => target.dataset.sidebarKey === key);
-
-            if (!item || item.classList.contains("active")) return;
-
-            this.itemTargets.forEach((target) => target.classList.remove("active"));
-            item.classList.add("active");
-          }
-        });
-
-        window.DetrixStimulus.register("profile-menu", class extends Controller {
-          connect() {
-            this.closeOnOutsidePointerDown = (event) => {
-              if (this.element.open && !this.element.contains(event.target)) {
-                this.element.open = false;
-              }
-            };
-
-            this.closeOnEscape = (event) => {
-              if (event.key === "Escape") this.element.open = false;
-            };
-
-            this.closeOnFrameLoad = () => {
-              this.element.open = false;
-            };
-
-            document.addEventListener("pointerdown", this.closeOnOutsidePointerDown, true);
-            document.addEventListener("keydown", this.closeOnEscape);
-            document.addEventListener("turbo:frame-load", this.closeOnFrameLoad);
-          }
-
-          disconnect() {
-            document.removeEventListener("pointerdown", this.closeOnOutsidePointerDown, true);
-            document.removeEventListener("keydown", this.closeOnEscape);
-            document.removeEventListener("turbo:frame-load", this.closeOnFrameLoad);
-          }
-        });
-
-        window.DetrixStimulus.register("theme-preview", class extends Controller {
-          static values = { initial: String };
-
-          connect() {
-            this.submitted = false;
-          }
-
-          change(event) {
-            if (!event.target.matches("input[type='radio'][name='user[theme_preference]']")) return;
-
-            this.apply(event.target.value);
-          }
-
-          submit() {
-            this.submitted = true;
-          }
-
-          disconnect() {
-            if (!this.submitted) this.apply(this.initialValue || "system");
-          }
-
-          apply(theme) {
-            const nextTheme = ["system", "light", "dark"].includes(theme) ? theme : "system";
-
-            document.body.classList.remove("theme-system", "theme-light", "theme-dark");
-            document.body.classList.add(`theme-${nextTheme}`);
-          }
-        });
-
-        window.DetrixSidebarControllerRegistered = true;
-      }
-    </script>
+    <%= javascript_importmap_tags "main" %>
   </head>
 
   <body class="logged-in-body theme-<%= theme_preference %>">
@@ -138,6 +48,54 @@
     <% end %>
 
     <div class="logged-in-shell" data-controller="sidebar">
+      <header class="logged-in-mobile-topbar">
+        <details class="logged-in-mobile-menu" data-controller="profile-menu">
+          <summary class="logged-in-mobile-icon-button" aria-label="Open navigation menu">
+            <span class="logged-in-mobile-hamburger" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </span>
+          </summary>
+
+          <div class="logged-in-mobile-context-menu logged-in-mobile-nav-panel">
+            <nav class="logged-in-mobile-nav" aria-label="Primary navigation">
+              <% primary_nav_items.each do |item| %>
+                <%= link_to item[:path], class: "logged-in-sidebar-link #{'active' if item[:active]}", data: { sidebar_target: "item", sidebar_key: item[:key], action: "pointerdown->sidebar#select", turbo_frame: "app_content", turbo_action: "advance" } do %>
+                  <span class="logged-in-sidebar-icon" aria-hidden="true">
+                    <%= icon.call(item[:icon]) %>
+                  </span>
+                  <span><%= item[:label] %></span>
+                <% end %>
+              <% end %>
+            </nav>
+          </div>
+        </details>
+
+        <div class="logged-in-mobile-brand">Detrix</div>
+
+        <details class="logged-in-mobile-menu" data-controller="profile-menu">
+          <summary class="logged-in-mobile-profile-summary" aria-label="Open profile menu">
+            <div class="logged-in-profile-avatar" aria-hidden="true"><%= profile_initials %></div>
+          </summary>
+
+          <div class="logged-in-mobile-context-menu logged-in-mobile-profile-panel">
+            <div class="logged-in-mobile-profile-card">
+              <p class="logged-in-mobile-profile-name"><%= profile_name %></p>
+              <p class="logged-in-mobile-profile-email"><%= current_user.email_address %></p>
+            </div>
+
+            <% if settings_access? %>
+              <%= link_to "Settings", settings_path, class: "logged-in-context-link", data: { turbo_frame: "app_content", turbo_action: "advance", turbo_prefetch: false } %>
+            <% end %>
+
+            <%= link_to "Personal settings", edit_settings_user_path(current_user), class: "logged-in-context-link", data: { turbo_frame: "app_content", turbo_action: "advance", turbo_prefetch: false } %>
+
+            <%= button_to "Log out", destroy_user_session_path, method: :delete, class: "logged-in-context-logout" %>
+          </div>
+        </details>
+      </header>
+
       <aside class="logged-in-sidebar">
         <div class="logged-in-sidebar-inner">
           <div>
@@ -151,11 +109,13 @@
             <nav class="logged-in-sidebar-nav" aria-label="Primary navigation">
               <p class="logged-in-nav-label">general</p>
 
-              <%= link_to overview_path, class: "logged-in-sidebar-link #{'active' if controller_name == 'overview'}", data: { sidebar_target: "item", sidebar_key: "dashboard", action: "pointerdown->sidebar#select", turbo_frame: "app_content", turbo_action: "advance" } do %>
-                <span class="logged-in-sidebar-icon" aria-hidden="true">
-                  <%= icon.call("dashboard") %>
-                </span>
-                <span>Dashboard</span>
+              <% primary_nav_items.each do |item| %>
+                <%= link_to item[:path], class: "logged-in-sidebar-link #{'active' if item[:active]}", data: { sidebar_target: "item", sidebar_key: item[:key], action: "pointerdown->sidebar#select", turbo_frame: "app_content", turbo_action: "advance" } do %>
+                  <span class="logged-in-sidebar-icon" aria-hidden="true">
+                    <%= icon.call(item[:icon]) %>
+                  </span>
+                  <span><%= item[:label] %></span>
+                <% end %>
               <% end %>
             </nav>
           </div>

@@ -75,6 +75,7 @@ export default class extends Controller {
     this.limeMaterial?.dispose();
     this.yellowMaterial?.dispose();
     this.renderer?.dispose();
+    this.disposeIconTextures();
   }
 
   updateDimensions(xCount, yCount, zCount) {
@@ -115,8 +116,8 @@ export default class extends Controller {
     this.geometry = new THREE.BoxGeometry(0.72, 0.72, 0.72);
     this.buttonGeometry = new THREE.PlaneGeometry(BUTTON_SIZE, BUTTON_SIZE);
     this.textureLoader = new THREE.TextureLoader();
-    this.eyeTexture = this.loadIconTexture(EYE_ICON_PATH);
-    this.eyeSlashTexture = this.loadIconTexture(EYE_SLASH_ICON_PATH);
+    this.iconTextureColor = null;
+    this.updateIconTextures();
     this.whiteMaterial = new THREE.MeshStandardMaterial({ color: this.matrixCubeColor(), roughness: 0.42, metalness: 0.02, transparent: true });
     this.limeMaterial = new THREE.MeshStandardMaterial({ color: 0x40ff00, roughness: 0.44, metalness: 0.02 });
     this.yellowMaterial = new THREE.MeshStandardMaterial({ color: 0xffe100, roughness: 0.44, metalness: 0.02 });
@@ -238,13 +239,39 @@ export default class extends Controller {
   loadIconTexture(path) {
     const texture = this.textureLoader.load(path, () => this.renderOnce());
 
+    this.configureIconTexture(texture);
+
+    return texture;
+  }
+
+  loadColoredIconTexture(path, color) {
+    return fetch(path)
+      .then((response) => response.text())
+      .then((svg) => new Promise((resolve) => {
+        const url = URL.createObjectURL(new Blob([this.coloredIconSvg(svg, color)], { type: "image/svg+xml" }));
+
+        this.textureLoader.load(url, (texture) => {
+          URL.revokeObjectURL(url);
+          this.configureIconTexture(texture);
+          resolve(texture);
+        });
+      }));
+  }
+
+  coloredIconSvg(svg, color) {
+    return svg.replace(/<path\b([^>]*)>/g, (_match, attributes) => {
+      const pathAttributes = attributes.replace(/\sfill="[^"]*"/g, "");
+
+      return `<path fill="${color}"${pathAttributes}>`;
+    });
+  }
+
+  configureIconTexture(texture) {
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
     texture.minFilter = THREE.LinearMipmapLinearFilter;
     texture.magFilter = THREE.LinearFilter;
     texture.generateMipmaps = true;
-
-    return texture;
   }
 
   addAxisCubes() {
@@ -512,6 +539,11 @@ export default class extends Controller {
     this.visibilityButtonMaterials?.forEach((material) => material.dispose());
   }
 
+  disposeIconTextures() {
+    this.eyeTexture?.dispose();
+    this.eyeSlashTexture?.dispose();
+  }
+
   closestCorner() {
     const rotationY = this.cube.rotation.y;
     const corners = this.outerCorners();
@@ -680,10 +712,39 @@ export default class extends Controller {
   syncTheme() {
     this.whiteMaterial?.color.set(this.matrixCubeColor());
     this.whiteCubeMaterials?.forEach((material) => material.color.set(this.matrixCubeColor()));
+    this.updateIconTextures();
   }
 
   matrixCubeColor() {
     return getComputedStyle(document.body).getPropertyValue("--matrix-cube-color").trim() || "#d8d8d8";
+  }
+
+  matrixButtonIconColor() {
+    return getComputedStyle(document.body).getPropertyValue("--matrix-button-icon-color").trim() || "#111111";
+  }
+
+  updateIconTextures() {
+    const color = this.matrixButtonIconColor();
+
+    if (this.iconTextureColor === color) return;
+    this.iconTextureColor = color;
+
+    Promise.all([
+      this.loadColoredIconTexture(EYE_ICON_PATH, color),
+      this.loadColoredIconTexture(EYE_SLASH_ICON_PATH, color)
+    ]).then(([eyeTexture, eyeSlashTexture]) => {
+      if (this.iconTextureColor !== color) {
+        eyeTexture.dispose();
+        eyeSlashTexture.dispose();
+        return;
+      }
+
+      this.disposeIconTextures();
+      this.eyeTexture = eyeTexture;
+      this.eyeSlashTexture = eyeSlashTexture;
+      this.updateAllButtonIcons();
+      this.renderOnce();
+    });
   }
 
   visibilityButtonHit(event) {
@@ -717,6 +778,12 @@ export default class extends Controller {
 
     button.material.map = visible ? this.eyeTexture : this.eyeSlashTexture;
     button.material.needsUpdate = true;
+  }
+
+  updateAllButtonIcons() {
+    this.visibilityButtons?.forEach((button) => {
+      this.updateButtonIcon(button.userData.axis, button.userData.index);
+    });
   }
 
   applyMatrixVisibility() {

@@ -14,6 +14,7 @@
   --matrix-card-text: #111111;
   --matrix-card-muted: #111111;
   --matrix-cube-color: #d8d8d8;
+  --matrix-button-icon-color: #111111;
   --app-shell-sidebar: #050505;
   --app-shell-sidebar-raised: #141414;
   --app-shell-sidebar-hover: #202020;
@@ -42,6 +43,7 @@
     --matrix-card-text: #f4f4f4;
     --matrix-card-muted: #f4f4f4;
     --matrix-cube-color: #ffffff;
+    --matrix-button-icon-color: #ffffff;
   }
 }
 
@@ -62,6 +64,7 @@
   --matrix-card-text: #111111;
   --matrix-card-muted: #111111;
   --matrix-cube-color: #d8d8d8;
+  --matrix-button-icon-color: #111111;
 }
 
 .logged-in-body.theme-dark {
@@ -81,6 +84,7 @@
   --matrix-card-text: #f4f4f4;
   --matrix-card-muted: #f4f4f4;
   --matrix-cube-color: #ffffff;
+  --matrix-button-icon-color: #ffffff;
 }
 
 body.logged-in-body {

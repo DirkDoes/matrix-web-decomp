@@ -864,32 +864,6 @@ body.logged-in-body {
   height: 100%;
 }
 
-.matrix-focus-pie {
-  --matrix-focus-progress: 0%;
-  position: absolute;
-  top: 1.25rem;
-  right: 1.25rem;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  opacity: 0;
-  pointer-events: none;
-  background: conic-gradient(var(--app-shell-text) var(--matrix-focus-progress), transparent 0);
-  transition: opacity 0.12s ease;
-}
-
-.matrix-focus-pie.is-visible {
-  opacity: 0.8;
-}
-
-.matrix-focus-pie::after {
-  content: "";
-  position: absolute;
-  inset: 0.34rem;
-  border-radius: 50%;
-  background: var(--app-shell-surface);
-}
-
 .matrices-page,
 .matrix-form-page {
   max-width: 1180px;

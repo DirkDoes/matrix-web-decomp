@@ -12,17 +12,23 @@ const MIN_CAMERA_ZOOM = 0.5;
 const MAX_CAMERA_ZOOM = 1.45;
 const ZOOM_SPEED = 0.0025;
 const DEFAULT_MATRIX_COUNT = 3;
-const SLICE_FOCUS_DELAY = 1700;
-const SLICE_SWITCH_DELAY = 400;
-const SLICE_CLEAR_DELAY = 700;
-const NEIGHBOR_SLICE_OPACITY = 0.2;
-const SECOND_NEIGHBOR_SLICE_OPACITY = 0.1;
-const INVISIBLE_SLICE_OPACITY = 0;
 const SLICE_OPACITY_DAMPING = 18;
-const FOCUS_PIE_VISIBLE_DELAY = 700;
+const BUTTON_OPACITY_DAMPING = 9;
+const BUTTON_VISIBLE_DELAY = 1000;
+const BUTTON_HIDDEN_DELAY = 1000;
+const BUTTON_SIZE = 0.46;
+const CUBE_SIZE = 0.72;
+const BUTTON_SIDE_OFFSET = 0.68;
+const BUTTON_WALL_GAP = 0.26;
+const BUTTON_WALL_OFFSET = (CUBE_SIZE / 2 + BUTTON_SIZE / 2 + BUTTON_WALL_GAP) / CUBE_SPACING;
+const BUTTON_BACK_EDGE_OFFSET = CUBE_SIZE / 2 / CUBE_SPACING;
+const BUTTON_HALF_OFFSET = BUTTON_SIZE / 2 / CUBE_SPACING;
+const BUTTON_GAP_OFFSET = BUTTON_WALL_GAP / CUBE_SPACING;
+const EYE_ICON_PATH = "/icons/eye-solid-full.svg";
+const EYE_SLASH_ICON_PATH = "/icons/eye-slash-solid-full.svg";
 
 export default class extends Controller {
-  static targets = ["canvas", "focusPie"];
+  static targets = ["canvas"];
   static values = {
     xCount: Number,
     yCount: Number,
@@ -36,13 +42,9 @@ export default class extends Controller {
     this.previousPointer = { x: 0, y: 0 };
     this.pendingVerticalDrag = 0;
     this.clock = new THREE.Clock();
-    this.sliceFocusActive = false;
-    this.activeSlice = null;
-    this.hoveredSlice = null;
-    this.pendingSlice = null;
-    this.pendingSliceStartedAt = null;
-    this.lastMatrixHoverEndedAt = null;
-    this.focusPieProgress = 0;
+    this.pointerInside = false;
+    this.pointerEnteredAt = null;
+    this.pointerLeftAt = null;
 
     this.setupScene();
     this.setupEvents();
@@ -60,12 +62,15 @@ export default class extends Controller {
     this.element.removeEventListener("pointermove", this.onPointerMove);
     this.element.removeEventListener("pointerup", this.onPointerUp);
     this.element.removeEventListener("pointercancel", this.onPointerUp);
+    this.element.removeEventListener("pointerenter", this.onPointerEnter);
     this.element.removeEventListener("pointerleave", this.onPointerLeave);
     this.element.removeEventListener("wheel", this.onWheel);
 
     this.geometry?.dispose();
     this.whiteMaterial?.dispose();
     this.disposeWhiteCubeMaterials();
+    this.disposeButtonMaterials();
+    this.buttonGeometry?.dispose();
     this.limeMaterial?.dispose();
     this.yellowMaterial?.dispose();
     this.renderer?.dispose();
@@ -76,7 +81,6 @@ export default class extends Controller {
     this.yCountValue = yCount;
     this.zCountValue = zCount;
     this.rebuildCubes();
-    this.clearSliceFocus();
     this.camera.zoom = this.defaultCameraZoom();
     this.camera.updateProjectionMatrix();
   }
@@ -108,6 +112,10 @@ export default class extends Controller {
     this.pointer = new THREE.Vector2();
 
     this.geometry = new THREE.BoxGeometry(0.72, 0.72, 0.72);
+    this.buttonGeometry = new THREE.PlaneGeometry(BUTTON_SIZE, BUTTON_SIZE);
+    this.textureLoader = new THREE.TextureLoader();
+    this.eyeTexture = this.loadIconTexture(EYE_ICON_PATH);
+    this.eyeSlashTexture = this.loadIconTexture(EYE_SLASH_ICON_PATH);
     this.whiteMaterial = new THREE.MeshStandardMaterial({ color: this.matrixCubeColor(), roughness: 0.42, metalness: 0.02, transparent: true });
     this.limeMaterial = new THREE.MeshStandardMaterial({ color: 0x40ff00, roughness: 0.44, metalness: 0.02 });
     this.yellowMaterial = new THREE.MeshStandardMaterial({ color: 0xffe100, roughness: 0.44, metalness: 0.02 });
@@ -126,28 +134,43 @@ export default class extends Controller {
 
   rebuildCubes(immediate = false) {
     this.disposeWhiteCubeMaterials();
+    this.disposeButtonMaterials();
     this.cube.clear();
     this.updateCoordinateRanges();
+    this.resetSliceVisibility();
     this.yAxisCubes = [];
     this.xAxisCubes = [];
     this.zAxisCubes = [];
     this.axisCubes = [];
     this.whiteCubes = [];
     this.whiteCubeMaterials = [];
-    this.clearSliceFocus();
+    this.visibilityButtons = [];
+    this.visibilityButtonMaterials = [];
 
     this.addWhiteCubes();
+    this.addVisibilityButtons();
 
     if (this.axesValue) {
       this.addAxisCubes();
       this.updateAxisPositions(immediate);
     }
+
+    this.updateVisibilityButtonPositions(immediate);
+    this.applyMatrixVisibility();
   }
 
   updateCoordinateRanges() {
     this.xCoordinates = this.coordinateRange(this.countValue("x"));
     this.yCoordinates = this.coordinateRange(this.countValue("y"));
     this.zCoordinates = this.coordinateRange(this.countValue("z"));
+  }
+
+  resetSliceVisibility() {
+    this.sliceVisibility = {
+      x: this.xCoordinates.map(() => true),
+      y: this.yCoordinates.map(() => true),
+      z: this.zCoordinates.map(() => true)
+    };
   }
 
   addWhiteCubes() {
@@ -169,10 +192,66 @@ export default class extends Controller {
     material.depthWrite = true;
     this.whiteCubeMaterials.push(material);
     this.whiteCubes.push(cubelet);
-    cubelet.userData.matrixSlice = z;
+    cubelet.userData.matrixIndices = {
+      x: this.coordinateIndex(this.xCoordinates, x),
+      y: this.coordinateIndex(this.yCoordinates, y),
+      z: this.coordinateIndex(this.zCoordinates, z)
+    };
     cubelet.userData.targetOpacity = 1;
 
     return cubelet;
+  }
+
+  addVisibilityButtons() {
+    this.xCoordinates.forEach((_coordinate, index) => {
+      this.visibilityButtons.push(this.addVisibilityButton("x", index));
+    });
+
+    this.yCoordinates.forEach((_coordinate, index) => {
+      this.visibilityButtons.push(this.addVisibilityButton("y", index));
+    });
+
+    this.zCoordinates.forEach((_coordinate, index) => {
+      this.visibilityButtons.push(this.addVisibilityButton("z", index));
+    });
+  }
+
+  addVisibilityButton(axis, index) {
+    const material = this.visibilityButtonMaterial(true);
+    const button = new THREE.Mesh(this.buttonGeometry, material);
+
+    button.userData.visibilityButton = true;
+    button.userData.axis = axis;
+    button.userData.index = index;
+    button.userData.targetOpacity = 0;
+    this.visibilityButtonMaterials.push(material);
+    this.cube.add(button);
+
+    return button;
+  }
+
+  visibilityButtonMaterial(visible) {
+    return new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      map: visible ? this.eyeTexture : this.eyeSlashTexture,
+      transparent: true,
+      alphaTest: 0.28,
+      opacity: 0,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+  }
+
+  loadIconTexture(path) {
+    const texture = this.textureLoader.load(path, () => this.renderOnce());
+
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.generateMipmaps = true;
+
+    return texture;
   }
 
   addAxisCubes() {
@@ -237,6 +316,148 @@ export default class extends Controller {
     });
   }
 
+  updateVisibilityButtonPositions(immediate = false) {
+    const closestCorner = this.closestCorner();
+    const yAxisCorner = this.leftmostVisibleVerticalCorner(closestCorner);
+    const outsideX = this.outsideCoordinate("x");
+    const outsideY = this.outsideCoordinate("y");
+    const outsideZ = this.outsideCoordinate("z");
+
+    this.visibilityButtons.forEach((button) => {
+      const { axis, index } = button.userData;
+
+      if (axis === "x") {
+        this.setButtonTransform(
+          button,
+          this.xCoordinates[index],
+          -outsideY - CUBE_SIZE / 2,
+          closestCorner.z * (outsideZ + BUTTON_SIDE_OFFSET),
+          -Math.PI / 2,
+          0,
+          closestCorner.z > 0 ? 0 : Math.PI,
+          immediate
+        );
+      } else if (axis === "z") {
+        this.setButtonTransform(
+          button,
+          closestCorner.x * (outsideX + BUTTON_SIDE_OFFSET),
+          -outsideY - CUBE_SIZE / 2,
+          this.zCoordinates[index],
+          -Math.PI / 2,
+          0,
+          closestCorner.x > 0 ? Math.PI / 2 : -Math.PI / 2,
+          immediate
+        );
+      } else {
+        const yButtonTransform = this.yVisibilityButtonTransform(closestCorner, yAxisCorner, outsideX, outsideZ);
+        const rotationY = immediate
+          ? yButtonTransform.rotationY
+          : this.closestEquivalentAngle(button.rotation.y, yButtonTransform.rotationY);
+
+        this.setButtonTransform(
+          button,
+          yButtonTransform.x,
+          this.yCoordinates[index],
+          yButtonTransform.z,
+          yButtonTransform.rotationX,
+          rotationY,
+          yButtonTransform.rotationZ,
+          immediate
+        );
+      }
+    });
+  }
+
+  yVisibilityButtonTransform(closestCorner, yAxisCorner, outsideX, outsideZ) {
+    const offsetDirection = this.rightSideDirectionForYButton(closestCorner, yAxisCorner);
+    const backDirection = this.directionFromClosestCorner(closestCorner, yAxisCorner);
+    const baseX = yAxisCorner.x * outsideX + offsetDirection.x * BUTTON_WALL_OFFSET + backDirection.x * BUTTON_BACK_EDGE_OFFSET;
+    const baseZ = yAxisCorner.z * outsideZ + offsetDirection.z * BUTTON_WALL_OFFSET + backDirection.z * BUTTON_BACK_EDGE_OFFSET;
+    const directionToPillar = { x: -offsetDirection.x, z: -offsetDirection.z };
+
+    if (!this.yVisibilityButtonSecondaryRotationActive(directionToPillar)) {
+      return {
+        x: baseX,
+        z: baseZ,
+        rotationX: 0,
+        rotationY: this.rotationYForLocalXDirection(directionToPillar),
+        rotationZ: 0
+      };
+    }
+
+    const hingeX = baseX + directionToPillar.x * BUTTON_HALF_OFFSET;
+    const hingeZ = baseZ + directionToPillar.z * BUTTON_HALF_OFFSET;
+    const pivotX = hingeX + directionToPillar.x * BUTTON_GAP_OFFSET;
+    const pivotZ = hingeZ + directionToPillar.z * BUTTON_GAP_OFFSET;
+    const rotatedDirectionToPillar = this.rotateDirectionRight(directionToPillar);
+
+    return {
+      x: pivotX - rotatedDirectionToPillar.x * (BUTTON_HALF_OFFSET + BUTTON_GAP_OFFSET),
+      z: pivotZ - rotatedDirectionToPillar.z * (BUTTON_HALF_OFFSET + BUTTON_GAP_OFFSET),
+      rotationX: 0,
+      rotationY: this.rotationYForLocalXDirection(rotatedDirectionToPillar),
+      rotationZ: 0
+    };
+  }
+
+  yVisibilityButtonSecondaryRotationActive(directionToPillar) {
+    const baseRotation = this.rotationYForLocalXDirection(directionToPillar);
+    const rotatedRotation = this.rotationYForLocalXDirection(this.rotateDirectionRight(directionToPillar));
+
+    return this.buttonFacingScore(rotatedRotation) > this.buttonFacingScore(baseRotation);
+  }
+
+  rotateDirectionRight(direction) {
+    return { x: -direction.z, z: direction.x };
+  }
+
+  buttonFacingScore(rotationY) {
+    const normal = { x: Math.sin(rotationY), z: Math.cos(rotationY) };
+    const viewDirection = { x: Math.sin(this.cube.rotation.y), z: -Math.cos(this.cube.rotation.y) };
+
+    return Math.abs(normal.x * viewDirection.x + normal.z * viewDirection.z);
+  }
+
+  directionFromClosestCorner(closestCorner, yAxisCorner) {
+    const xDirection = yAxisCorner.x - closestCorner.x;
+    const zDirection = yAxisCorner.z - closestCorner.z;
+
+    if (xDirection !== 0 && zDirection === 0) return { x: Math.sign(xDirection), z: 0 };
+    if (zDirection !== 0 && xDirection === 0) return { x: 0, z: Math.sign(zDirection) };
+
+    return { x: yAxisCorner.x, z: 0 };
+  }
+
+  rightSideDirectionForYButton(closestCorner, yAxisCorner) {
+    const backDirection = this.directionFromClosestCorner(closestCorner, yAxisCorner);
+
+    if (backDirection.x !== 0) return { x: 0, z: yAxisCorner.z };
+    if (backDirection.z !== 0) return { x: yAxisCorner.x, z: 0 };
+
+    return { x: yAxisCorner.x, z: 0 };
+  }
+
+  rotationYForLocalXDirection(direction) {
+    return Math.atan2(-direction.z, direction.x);
+  }
+
+  closestEquivalentAngle(currentAngle, targetAngle) {
+    return currentAngle + THREE.MathUtils.euclideanModulo(targetAngle - currentAngle + Math.PI, Math.PI * 2) - Math.PI;
+  }
+
+  setButtonTransform(button, x, y, z, rotationX, rotationY, rotationZ, immediate = false) {
+    if (!button.userData.targetPosition) button.userData.targetPosition = new THREE.Vector3();
+    if (!button.userData.targetRotation) button.userData.targetRotation = new THREE.Euler();
+
+    button.userData.targetPosition.set(x * CUBE_SPACING, y * CUBE_SPACING, z * CUBE_SPACING);
+    button.userData.targetRotation.set(rotationX, rotationY, rotationZ);
+
+    if (immediate) {
+      button.position.copy(button.userData.targetPosition);
+      button.rotation.copy(button.userData.targetRotation);
+    }
+  }
+
   setAxisTarget(cubelet, x, y, z, immediate = false) {
     const targetPosition = cubelet.userData.targetPosition;
 
@@ -259,8 +480,23 @@ export default class extends Controller {
     });
   }
 
+  updateAnimatedButtonTransforms(delta) {
+    this.visibilityButtons.forEach((button) => {
+      button.position.x = THREE.MathUtils.damp(button.position.x, button.userData.targetPosition.x, AXIS_MOVE_DAMPING, delta);
+      button.position.y = THREE.MathUtils.damp(button.position.y, button.userData.targetPosition.y, AXIS_MOVE_DAMPING, delta);
+      button.position.z = THREE.MathUtils.damp(button.position.z, button.userData.targetPosition.z, AXIS_MOVE_DAMPING, delta);
+      button.rotation.x = THREE.MathUtils.damp(button.rotation.x, button.userData.targetRotation.x, AXIS_MOVE_DAMPING, delta);
+      button.rotation.y = THREE.MathUtils.damp(button.rotation.y, button.userData.targetRotation.y, AXIS_MOVE_DAMPING, delta);
+      button.rotation.z = THREE.MathUtils.damp(button.rotation.z, button.userData.targetRotation.z, AXIS_MOVE_DAMPING, delta);
+    });
+  }
+
   disposeWhiteCubeMaterials() {
     this.whiteCubeMaterials?.forEach((material) => material.dispose());
+  }
+
+  disposeButtonMaterials() {
+    this.visibilityButtonMaterials?.forEach((material) => material.dispose());
   }
 
   closestCorner() {
@@ -344,20 +580,24 @@ export default class extends Controller {
 
   setupEvents() {
     this.onPointerDown = (event) => {
+      const button = this.visibilityButtonHit(event);
+
+      if (button) {
+        event.preventDefault();
+        this.toggleSliceVisibility(button.userData.axis, button.userData.index);
+        return;
+      }
+
       this.dragging = true;
       this.pointerId = event.pointerId;
       this.previousPointer = { x: event.clientX, y: event.clientY };
       this.pendingVerticalDrag = 0;
-      this.resetSliceHoverTimers();
       this.element.classList.add("is-dragging");
       this.element.setPointerCapture(event.pointerId);
     };
 
     this.onPointerMove = (event) => {
-      if (!this.dragging) {
-        this.updateHoveredMatrixSlice(event);
-        return;
-      }
+      if (!this.dragging) return;
 
       if (event.pointerId !== this.pointerId) return;
 
@@ -366,6 +606,7 @@ export default class extends Controller {
 
       this.cube.rotation.y += deltaX * DRAG_ROTATION_SPEED;
       this.updateAxisPositions();
+      this.updateVisibilityButtonPositions();
       this.applyVerticalDrag(deltaY);
       this.previousPointer = { x: event.clientX, y: event.clientY };
     };
@@ -376,7 +617,6 @@ export default class extends Controller {
       this.dragging = false;
       this.pointerId = null;
       this.element.classList.remove("is-dragging");
-      this.updateHoveredMatrixSlice(event);
 
       if (this.element.hasPointerCapture(event.pointerId)) {
         this.element.releasePointerCapture(event.pointerId);
@@ -384,7 +624,11 @@ export default class extends Controller {
     };
 
     this.onPointerLeave = () => {
-      if (!this.dragging) this.markMatrixHoverEnded();
+      if (!this.dragging) this.markPointerLeft();
+    };
+
+    this.onPointerEnter = () => {
+      this.markPointerEntered();
     };
 
     this.onWheel = (event) => {
@@ -396,6 +640,7 @@ export default class extends Controller {
     this.element.addEventListener("pointermove", this.onPointerMove);
     this.element.addEventListener("pointerup", this.onPointerUp);
     this.element.addEventListener("pointercancel", this.onPointerUp);
+    this.element.addEventListener("pointerenter", this.onPointerEnter);
     this.element.addEventListener("pointerleave", this.onPointerLeave);
     this.element.addEventListener("wheel", this.onWheel, { passive: false });
 
@@ -418,154 +663,90 @@ export default class extends Controller {
     return getComputedStyle(document.body).getPropertyValue("--matrix-cube-color").trim() || "#d8d8d8";
   }
 
-  updateHoveredMatrixSlice(event) {
-    if (!this.sliceFocusAllowed()) return;
-
-    const hit = this.matrixCubeHit(event);
-
-    if (!hit) {
-      this.markMatrixHoverEnded();
-      return;
-    }
-
-    const slice = hit.object.userData.matrixSlice;
-    this.hoveredSlice = slice;
-    this.lastMatrixHoverEndedAt = null;
-
-    if (this.sliceFocusActive && this.activeSlice === slice) {
-      this.pendingSlice = null;
-      this.pendingSliceStartedAt = null;
-      return;
-    }
-
-    if (this.pendingSlice !== slice) {
-      this.pendingSlice = slice;
-      this.pendingSliceStartedAt = performance.now();
-    }
-  }
-
-  matrixCubeHit(event) {
-    if (!this.whiteCubes?.length) return null;
-
+  visibilityButtonHit(event) {
+    if (!this.visibilityButtons?.length) return null;
     const bounds = this.canvasTarget.getBoundingClientRect();
+
     this.pointer.x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
     this.pointer.y = -((event.clientY - bounds.top) / bounds.height) * 2 + 1;
     this.cube.updateMatrixWorld(true);
     this.raycaster.setFromCamera(this.pointer, this.camera);
 
-    return this.raycaster.intersectObjects(this.whiteCubes, false)[0] || null;
+    return this.raycaster.intersectObjects(this.visibilityButtons, false).find((hit) => {
+      const { axis, index } = hit.object.userData;
+
+      return hit.object.material.opacity > 0.2 || !this.sliceVisibility[axis][index];
+    })?.object || null;
   }
 
-  markMatrixHoverEnded() {
-    this.hoveredSlice = null;
-    this.pendingSlice = null;
-    this.pendingSliceStartedAt = null;
-
-    if (this.sliceFocusActive && !this.lastMatrixHoverEndedAt) {
-      this.lastMatrixHoverEndedAt = performance.now();
-    }
+  toggleSliceVisibility(axis, index) {
+    this.sliceVisibility[axis][index] = !this.sliceVisibility[axis][index];
+    this.updateButtonIcon(axis, index);
+    this.applyMatrixVisibility();
+    this.updateVisibilityButtonTargets();
   }
 
-  resetSliceHoverTimers() {
-    this.pendingSlice = null;
-    this.pendingSliceStartedAt = null;
-    this.lastMatrixHoverEndedAt = null;
-    this.setFocusPieProgress(0);
+  updateButtonIcon(axis, index) {
+    const visible = this.sliceVisibility[axis][index];
+    const button = this.visibilityButtons.find((candidate) => candidate.userData.axis === axis && candidate.userData.index === index);
+
+    if (!button) return;
+
+    button.material.map = visible ? this.eyeTexture : this.eyeSlashTexture;
+    button.material.needsUpdate = true;
   }
 
-  updateSliceFocus() {
-    if (!this.sliceFocusAllowed()) {
-      this.clearSliceFocus();
-      return;
-    }
-
-    if (this.dragging) return;
-
-    const now = performance.now();
-
-    if (!this.sliceFocusActive) {
-      if (this.hoveredSlice === null || this.pendingSlice === null) return;
-      if (now - this.pendingSliceStartedAt >= SLICE_FOCUS_DELAY) this.enableSliceFocus(this.pendingSlice);
-      return;
-    }
-
-    if (this.hoveredSlice === null) {
-      if (this.lastMatrixHoverEndedAt && now - this.lastMatrixHoverEndedAt >= SLICE_CLEAR_DELAY) {
-        this.clearSliceFocus();
-      }
-      return;
-    }
-
-    if (this.hoveredSlice !== this.activeSlice && this.pendingSlice === this.hoveredSlice && now - this.pendingSliceStartedAt >= SLICE_SWITCH_DELAY) {
-      this.enableSliceFocus(this.pendingSlice);
-    }
-  }
-
-  updateFocusPieProgress() {
-    if (!this.hasFocusPieTarget) return;
-
-    if (!this.sliceFocusAllowed() || this.dragging || this.sliceFocusActive || this.hoveredSlice === null || this.pendingSlice === null || !this.pendingSliceStartedAt) {
-      this.setFocusPieProgress(0);
-      return;
-    }
-
-    const elapsed = performance.now() - this.pendingSliceStartedAt;
-
-    if (elapsed < FOCUS_PIE_VISIBLE_DELAY) {
-      this.setFocusPieProgress(0);
-      return;
-    }
-
-    const progress = (elapsed - FOCUS_PIE_VISIBLE_DELAY) / (SLICE_FOCUS_DELAY - FOCUS_PIE_VISIBLE_DELAY);
-    this.setFocusPieProgress(THREE.MathUtils.clamp(progress, 0, 1));
-  }
-
-  setFocusPieProgress(progress) {
-    if (!this.hasFocusPieTarget || this.focusPieProgress === progress) return;
-
-    this.focusPieProgress = progress;
-    this.focusPieTarget.style.setProperty("--matrix-focus-progress", `${progress * 100}%`);
-    this.focusPieTarget.classList.toggle("is-visible", progress > 0);
-  }
-
-  enableSliceFocus(slice) {
-    this.sliceFocusActive = true;
-    this.activeSlice = slice;
-    this.pendingSlice = null;
-    this.pendingSliceStartedAt = null;
-    this.lastMatrixHoverEndedAt = null;
-    this.applySliceOpacity();
-  }
-
-  clearSliceFocus() {
-    this.sliceFocusActive = false;
-    this.activeSlice = null;
-    this.pendingSlice = null;
-    this.pendingSliceStartedAt = null;
-    this.lastMatrixHoverEndedAt = null;
-    this.applySliceOpacity();
-  }
-
-  applySliceOpacity() {
+  applyMatrixVisibility() {
     this.whiteCubes?.forEach((cubelet) => {
-      cubelet.userData.targetOpacity = this.targetOpacityForCube(cubelet);
+      const { x, y, z } = cubelet.userData.matrixIndices;
+
+      cubelet.userData.targetOpacity = this.sliceVisibility.x[x] && this.sliceVisibility.y[y] && this.sliceVisibility.z[z] ? 1 : 0;
     });
   }
 
-  sliceFocusAllowed() {
-    return this.countValue("x") > 2 && this.countValue("y") > 2 && this.countValue("z") > 2;
+  markPointerEntered() {
+    this.pointerInside = true;
+    this.pointerEnteredAt = performance.now();
+    this.pointerLeftAt = null;
   }
 
-  targetOpacityForCube(cubelet) {
-    if (!this.sliceFocusActive) return 1;
+  markPointerLeft() {
+    this.pointerInside = false;
+    this.pointerEnteredAt = null;
+    this.pointerLeftAt = performance.now();
+  }
 
-    const distance = Math.abs(cubelet.userData.matrixSlice - this.activeSlice);
+  updateVisibilityButtonTargets() {
+    const now = performance.now();
+    const stageVisible = this.pointerInside
+      ? this.pointerEnteredAt && now - this.pointerEnteredAt >= BUTTON_VISIBLE_DELAY
+      : this.pointerLeftAt && now - this.pointerLeftAt < BUTTON_HIDDEN_DELAY;
 
-    if (distance === 0) return 1;
-    if (distance === 1) return NEIGHBOR_SLICE_OPACITY;
-    if (distance === 2) return SECOND_NEIGHBOR_SLICE_OPACITY;
+    this.visibilityButtons?.forEach((button) => {
+      const { axis, index } = button.userData;
+      const forcedVisible = !this.sliceVisibility[axis][index];
 
-    return INVISIBLE_SLICE_OPACITY;
+      button.userData.targetOpacity = forcedVisible || stageVisible ? 1 : 0;
+    });
+  }
+
+  updateButtonOpacity(delta) {
+    this.visibilityButtons?.forEach((button) => {
+      const targetOpacity = button.userData.targetOpacity ?? 0;
+
+      button.material.opacity = THREE.MathUtils.damp(button.material.opacity, targetOpacity, BUTTON_OPACITY_DAMPING, delta);
+      button.visible = button.material.opacity > 0.01;
+    });
+  }
+
+  coordinateIndex(coordinates, coordinate) {
+    return coordinates.findIndex((candidate) => candidate === coordinate);
+  }
+
+  renderOnce() {
+    if (this.renderer && this.scene && this.camera) {
+      this.renderer.render(this.scene, this.camera);
+    }
   }
 
   updateSliceOpacity(delta) {
@@ -574,6 +755,7 @@ export default class extends Controller {
 
       cubelet.material.opacity = THREE.MathUtils.damp(cubelet.material.opacity, targetOpacity, SLICE_OPACITY_DAMPING, delta);
       cubelet.material.depthWrite = cubelet.material.opacity > 0.92;
+      cubelet.visible = cubelet.material.opacity > 0.01;
     });
   }
 
@@ -620,10 +802,11 @@ export default class extends Controller {
   animate() {
     const delta = this.clock.getDelta();
 
-    this.updateSliceFocus();
-    this.updateFocusPieProgress();
+    this.updateVisibilityButtonTargets();
     this.updateSliceOpacity(delta);
     this.updateAnimatedAxisPositions(delta);
+    this.updateAnimatedButtonTransforms(delta);
+    this.updateButtonOpacity(delta);
     this.renderer.render(this.scene, this.camera);
     this.animationFrame = requestAnimationFrame(() => this.animate());
   }

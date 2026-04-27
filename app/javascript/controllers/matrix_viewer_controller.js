@@ -18,7 +18,7 @@ const BUTTON_VISIBLE_DELAY = 1000;
 const BUTTON_HIDDEN_DELAY = 1000;
 const BUTTON_SIZE = 0.46;
 const CUBE_SIZE = 0.72;
-const BUTTON_SIDE_OFFSET = 0.68;
+const BUTTON_SIDE_OFFSET = 0.82;
 const BUTTON_WALL_GAP = 0.26;
 const BUTTON_WALL_OFFSET = (CUBE_SIZE / 2 + BUTTON_SIZE / 2 + BUTTON_WALL_GAP) / CUBE_SPACING;
 const BUTTON_BACK_EDGE_OFFSET = CUBE_SIZE / 2 / CUBE_SPACING;
@@ -319,9 +319,9 @@ export default class extends Controller {
   updateVisibilityButtonPositions(immediate = false) {
     const closestCorner = this.closestCorner();
     const yAxisCorner = this.leftmostVisibleVerticalCorner(closestCorner);
-    const outsideX = this.outsideCoordinate("x");
-    const outsideY = this.outsideCoordinate("y");
-    const outsideZ = this.outsideCoordinate("z");
+    const buttonX = this.visibilityButtonAnchorCoordinate("x");
+    const buttonY = this.visibilityButtonAnchorCoordinate("y");
+    const buttonZ = this.visibilityButtonAnchorCoordinate("z");
 
     this.visibilityButtons.forEach((button) => {
       const { axis, index } = button.userData;
@@ -330,8 +330,8 @@ export default class extends Controller {
         this.setButtonTransform(
           button,
           this.xCoordinates[index],
-          -outsideY - CUBE_SIZE / 2,
-          closestCorner.z * (outsideZ + BUTTON_SIDE_OFFSET),
+          -buttonY - CUBE_SIZE / 2,
+          closestCorner.z * (buttonZ + BUTTON_SIDE_OFFSET),
           -Math.PI / 2,
           0,
           closestCorner.z > 0 ? 0 : Math.PI,
@@ -340,8 +340,8 @@ export default class extends Controller {
       } else if (axis === "z") {
         this.setButtonTransform(
           button,
-          closestCorner.x * (outsideX + BUTTON_SIDE_OFFSET),
-          -outsideY - CUBE_SIZE / 2,
+          closestCorner.x * (buttonX + BUTTON_SIDE_OFFSET),
+          -buttonY - CUBE_SIZE / 2,
           this.zCoordinates[index],
           -Math.PI / 2,
           0,
@@ -349,7 +349,7 @@ export default class extends Controller {
           immediate
         );
       } else {
-        const yButtonTransform = this.yVisibilityButtonTransform(closestCorner, yAxisCorner, outsideX, outsideZ);
+        const yButtonTransform = this.yVisibilityButtonTransform(closestCorner, yAxisCorner, buttonX, buttonZ);
         const rotationY = immediate
           ? yButtonTransform.rotationY
           : this.closestEquivalentAngle(button.rotation.y, yButtonTransform.rotationY);
@@ -366,6 +366,10 @@ export default class extends Controller {
         );
       }
     });
+  }
+
+  visibilityButtonAnchorCoordinate(axis) {
+    return this.axesValue ? this.outsideCoordinate(axis) : this.edgeCoordinate(axis);
   }
 
   yVisibilityButtonTransform(closestCorner, yAxisCorner, outsideX, outsideZ) {
@@ -564,6 +568,12 @@ export default class extends Controller {
     const furthestCoordinate = Math.max(...coordinates.map((coordinate) => Math.abs(coordinate)));
 
     return furthestCoordinate + 1;
+  }
+
+  edgeCoordinate(axis) {
+    const coordinates = this[`${axis}Coordinates`];
+
+    return Math.max(...coordinates.map((coordinate) => Math.abs(coordinate)));
   }
 
   defaultCameraZoom() {

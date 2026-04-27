@@ -26,6 +26,7 @@ const BUTTON_HALF_OFFSET = BUTTON_SIZE / 2 / CUBE_SPACING;
 const BUTTON_GAP_OFFSET = BUTTON_WALL_GAP / CUBE_SPACING;
 const EYE_ICON_PATH = "/icons/eye-solid-full.svg";
 const EYE_SLASH_ICON_PATH = "/icons/eye-slash-solid-full.svg";
+const MATRIX_AXES = ["x", "y", "z"];
 
 export default class extends Controller {
   static targets = ["canvas"];
@@ -166,11 +167,9 @@ export default class extends Controller {
   }
 
   resetSliceVisibility() {
-    this.sliceVisibility = {
-      x: this.xCoordinates.map(() => true),
-      y: this.yCoordinates.map(() => true),
-      z: this.zCoordinates.map(() => true)
-    };
+    this.sliceVisibility = Object.fromEntries(
+      MATRIX_AXES.map((axis) => [axis, this.coordinatesFor(axis).map(() => true)])
+    );
   }
 
   addWhiteCubes() {
@@ -203,16 +202,10 @@ export default class extends Controller {
   }
 
   addVisibilityButtons() {
-    this.xCoordinates.forEach((_coordinate, index) => {
-      this.visibilityButtons.push(this.addVisibilityButton("x", index));
-    });
-
-    this.yCoordinates.forEach((_coordinate, index) => {
-      this.visibilityButtons.push(this.addVisibilityButton("y", index));
-    });
-
-    this.zCoordinates.forEach((_coordinate, index) => {
-      this.visibilityButtons.push(this.addVisibilityButton("z", index));
+    MATRIX_AXES.forEach((axis) => {
+      this.coordinatesFor(axis).forEach((_coordinate, index) => {
+        this.visibilityButtons.push(this.addVisibilityButton(axis, index));
+      });
     });
   }
 
@@ -317,94 +310,106 @@ export default class extends Controller {
   }
 
   updateVisibilityButtonPositions(immediate = false) {
-    const closestCorner = this.closestCorner();
-    const yAxisCorner = this.leftmostVisibleVerticalCorner(closestCorner);
-    const buttonX = this.visibilityButtonAnchorCoordinate("x");
-    const buttonY = this.visibilityButtonAnchorCoordinate("y");
-    const buttonZ = this.visibilityButtonAnchorCoordinate("z");
+    const context = this.visibilityButtonLayoutContext();
 
     this.visibilityButtons.forEach((button) => {
-      const { axis, index } = button.userData;
+      const transform = this.visibilityButtonTransform(button, context, immediate);
 
-      if (axis === "x") {
-        this.setButtonTransform(
-          button,
-          this.xCoordinates[index],
-          -buttonY - CUBE_SIZE / 2,
-          closestCorner.z * (buttonZ + BUTTON_SIDE_OFFSET),
-          -Math.PI / 2,
-          0,
-          closestCorner.z > 0 ? 0 : Math.PI,
-          immediate
-        );
-      } else if (axis === "z") {
-        this.setButtonTransform(
-          button,
-          closestCorner.x * (buttonX + BUTTON_SIDE_OFFSET),
-          -buttonY - CUBE_SIZE / 2,
-          this.zCoordinates[index],
-          -Math.PI / 2,
-          0,
-          closestCorner.x > 0 ? Math.PI / 2 : -Math.PI / 2,
-          immediate
-        );
-      } else {
-        const yButtonTransform = this.yVisibilityButtonTransform(closestCorner, yAxisCorner, buttonX, buttonZ);
-        const rotationY = immediate
-          ? yButtonTransform.rotationY
-          : this.closestEquivalentAngle(button.rotation.y, yButtonTransform.rotationY);
-
-        this.setButtonTransform(
-          button,
-          yButtonTransform.x,
-          this.yCoordinates[index],
-          yButtonTransform.z,
-          yButtonTransform.rotationX,
-          rotationY,
-          yButtonTransform.rotationZ,
-          immediate
-        );
-      }
+      this.setButtonTransform(button, transform, immediate);
     });
+  }
+
+  visibilityButtonLayoutContext() {
+    const closestCorner = this.closestCorner();
+    const yAxisCorner = this.leftmostVisibleVerticalCorner(closestCorner);
+
+    return {
+      closestCorner,
+      yAxisCorner,
+      anchor: {
+        x: this.visibilityButtonAnchorCoordinate("x"),
+        y: this.visibilityButtonAnchorCoordinate("y"),
+        z: this.visibilityButtonAnchorCoordinate("z")
+      }
+    };
+  }
+
+  visibilityButtonTransform(button, context, immediate) {
+    const { axis, index } = button.userData;
+
+    if (axis === "x") return this.xVisibilityButtonTransform(index, context);
+    if (axis === "z") return this.zVisibilityButtonTransform(index, context);
+
+    return this.yVisibilityButtonTransform(index, button.rotation.y, context, immediate);
+  }
+
+  xVisibilityButtonTransform(index, { closestCorner, anchor }) {
+    return {
+      x: this.coordinatesFor("x")[index],
+      y: -anchor.y - CUBE_SIZE / 2,
+      z: closestCorner.z * (anchor.z + BUTTON_SIDE_OFFSET),
+      rotationX: -Math.PI / 2,
+      rotationY: 0,
+      rotationZ: closestCorner.z > 0 ? 0 : Math.PI
+    };
+  }
+
+  zVisibilityButtonTransform(index, { closestCorner, anchor }) {
+    return {
+      x: closestCorner.x * (anchor.x + BUTTON_SIDE_OFFSET),
+      y: -anchor.y - CUBE_SIZE / 2,
+      z: this.coordinatesFor("z")[index],
+      rotationX: -Math.PI / 2,
+      rotationY: 0,
+      rotationZ: closestCorner.x > 0 ? Math.PI / 2 : -Math.PI / 2
+    };
   }
 
   visibilityButtonAnchorCoordinate(axis) {
     return this.axesValue ? this.outsideCoordinate(axis) : this.edgeCoordinate(axis);
   }
 
-  yVisibilityButtonTransform(closestCorner, yAxisCorner, outsideX, outsideZ) {
+  yVisibilityButtonTransform(index, currentRotationY, { closestCorner, yAxisCorner, anchor }, immediate) {
     const offsetDirection = this.rightSideDirectionForYButton(closestCorner, yAxisCorner);
     const backDirection = this.directionFromClosestCorner(closestCorner, yAxisCorner);
-    const baseX = yAxisCorner.x * outsideX + offsetDirection.x * BUTTON_WALL_OFFSET + backDirection.x * BUTTON_BACK_EDGE_OFFSET;
-    const baseZ = yAxisCorner.z * outsideZ + offsetDirection.z * BUTTON_WALL_OFFSET + backDirection.z * BUTTON_BACK_EDGE_OFFSET;
+    const basePosition = {
+      x: yAxisCorner.x * anchor.x + offsetDirection.x * BUTTON_WALL_OFFSET + backDirection.x * BUTTON_BACK_EDGE_OFFSET,
+      z: yAxisCorner.z * anchor.z + offsetDirection.z * BUTTON_WALL_OFFSET + backDirection.z * BUTTON_BACK_EDGE_OFFSET
+    };
     const directionToPillar = { x: -offsetDirection.x, z: -offsetDirection.z };
-
-    if (!this.yVisibilityButtonSecondaryRotationActive(directionToPillar)) {
-      return {
-        x: baseX,
-        z: baseZ,
-        rotationX: 0,
-        rotationY: this.rotationYForLocalXDirection(directionToPillar),
-        rotationZ: 0
-      };
-    }
-
-    const hingeX = baseX + directionToPillar.x * BUTTON_HALF_OFFSET;
-    const hingeZ = baseZ + directionToPillar.z * BUTTON_HALF_OFFSET;
-    const pivotX = hingeX + directionToPillar.x * BUTTON_GAP_OFFSET;
-    const pivotZ = hingeZ + directionToPillar.z * BUTTON_GAP_OFFSET;
-    const rotatedDirectionToPillar = this.rotateDirectionRight(directionToPillar);
+    const faceDirection = this.yButtonFaceDirection(directionToPillar);
+    const rotationY = this.rotationYForLocalXDirection(faceDirection);
 
     return {
-      x: pivotX - rotatedDirectionToPillar.x * (BUTTON_HALF_OFFSET + BUTTON_GAP_OFFSET),
-      z: pivotZ - rotatedDirectionToPillar.z * (BUTTON_HALF_OFFSET + BUTTON_GAP_OFFSET),
+      ...this.yButtonPosition(basePosition, directionToPillar, faceDirection),
+      y: this.coordinatesFor("y")[index],
       rotationX: 0,
-      rotationY: this.rotationYForLocalXDirection(rotatedDirectionToPillar),
+      rotationY: immediate ? rotationY : this.closestEquivalentAngle(currentRotationY, rotationY),
       rotationZ: 0
     };
   }
 
-  yVisibilityButtonSecondaryRotationActive(directionToPillar) {
+  yButtonFaceDirection(directionToPillar) {
+    if (this.yRotatedButtonViewPreferred(directionToPillar)) return this.rotateDirectionRight(directionToPillar);
+
+    return directionToPillar;
+  }
+
+  yButtonPosition(basePosition, directionToPillar, faceDirection) {
+    if (this.sameDirection(faceDirection, directionToPillar)) return basePosition;
+
+    const hingeX = basePosition.x + directionToPillar.x * BUTTON_HALF_OFFSET;
+    const hingeZ = basePosition.z + directionToPillar.z * BUTTON_HALF_OFFSET;
+    const pivotX = hingeX + directionToPillar.x * BUTTON_GAP_OFFSET;
+    const pivotZ = hingeZ + directionToPillar.z * BUTTON_GAP_OFFSET;
+
+    return {
+      x: pivotX - faceDirection.x * (BUTTON_HALF_OFFSET + BUTTON_GAP_OFFSET),
+      z: pivotZ - faceDirection.z * (BUTTON_HALF_OFFSET + BUTTON_GAP_OFFSET)
+    };
+  }
+
+  yRotatedButtonViewPreferred(directionToPillar) {
     const baseRotation = this.rotationYForLocalXDirection(directionToPillar);
     const rotatedRotation = this.rotationYForLocalXDirection(this.rotateDirectionRight(directionToPillar));
 
@@ -413,6 +418,10 @@ export default class extends Controller {
 
   rotateDirectionRight(direction) {
     return { x: -direction.z, z: direction.x };
+  }
+
+  sameDirection(firstDirection, secondDirection) {
+    return firstDirection.x === secondDirection.x && firstDirection.z === secondDirection.z;
   }
 
   buttonFacingScore(rotationY) {
@@ -449,12 +458,12 @@ export default class extends Controller {
     return currentAngle + THREE.MathUtils.euclideanModulo(targetAngle - currentAngle + Math.PI, Math.PI * 2) - Math.PI;
   }
 
-  setButtonTransform(button, x, y, z, rotationX, rotationY, rotationZ, immediate = false) {
+  setButtonTransform(button, transform, immediate = false) {
     if (!button.userData.targetPosition) button.userData.targetPosition = new THREE.Vector3();
     if (!button.userData.targetRotation) button.userData.targetRotation = new THREE.Euler();
 
-    button.userData.targetPosition.set(x * CUBE_SPACING, y * CUBE_SPACING, z * CUBE_SPACING);
-    button.userData.targetRotation.set(rotationX, rotationY, rotationZ);
+    button.userData.targetPosition.set(transform.x * CUBE_SPACING, transform.y * CUBE_SPACING, transform.z * CUBE_SPACING);
+    button.userData.targetRotation.set(transform.rotationX, transform.rotationY, transform.rotationZ);
 
     if (immediate) {
       button.position.copy(button.userData.targetPosition);
@@ -563,15 +572,19 @@ export default class extends Controller {
     return Number.isInteger(value) && value > 0 ? value : DEFAULT_MATRIX_COUNT;
   }
 
+  coordinatesFor(axis) {
+    return this[`${axis}Coordinates`];
+  }
+
   outsideCoordinate(axis) {
-    const coordinates = this[`${axis}Coordinates`];
+    const coordinates = this.coordinatesFor(axis);
     const furthestCoordinate = Math.max(...coordinates.map((coordinate) => Math.abs(coordinate)));
 
     return furthestCoordinate + 1;
   }
 
   edgeCoordinate(axis) {
-    const coordinates = this[`${axis}Coordinates`];
+    const coordinates = this.coordinatesFor(axis);
 
     return Math.max(...coordinates.map((coordinate) => Math.abs(coordinate)));
   }
@@ -708,9 +721,9 @@ export default class extends Controller {
 
   applyMatrixVisibility() {
     this.whiteCubes?.forEach((cubelet) => {
-      const { x, y, z } = cubelet.userData.matrixIndices;
+      const indices = cubelet.userData.matrixIndices;
 
-      cubelet.userData.targetOpacity = this.sliceVisibility.x[x] && this.sliceVisibility.y[y] && this.sliceVisibility.z[z] ? 1 : 0;
+      cubelet.userData.targetOpacity = MATRIX_AXES.every((axis) => this.sliceVisibility[axis][indices[axis]]) ? 1 : 0;
     });
   }
 

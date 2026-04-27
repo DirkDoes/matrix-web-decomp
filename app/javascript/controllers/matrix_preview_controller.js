@@ -14,6 +14,7 @@ export default class extends Controller {
 
   connect() {
     this.setupScene();
+    this.setupThemeObserver();
     this.renderPreview();
     this.resize();
 
@@ -23,6 +24,7 @@ export default class extends Controller {
 
   disconnect() {
     this.resizeObserver?.disconnect();
+    this.themeObserver?.disconnect();
     this.geometry?.dispose();
     this.material?.dispose();
     this.renderer?.dispose();
@@ -51,9 +53,9 @@ export default class extends Controller {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 
     this.geometry = new THREE.BoxGeometry(0.56, 0.56, 0.56);
-    this.material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.48, metalness: 0.02 });
+    this.material = new THREE.MeshStandardMaterial({ color: this.matrixCubeColor(), roughness: 0.48, metalness: 0.02 });
     this.group = new THREE.Group();
-    this.group.rotation.set(-0.46, 0.68, 0);
+    this.group.rotation.set(0.46, 0.68, 0);
     this.scene.add(this.group);
 
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x555555, 2.2));
@@ -61,6 +63,17 @@ export default class extends Controller {
     const keyLight = new THREE.DirectionalLight(0xffffff, 2.4);
     keyLight.position.set(3, 4, 5);
     this.scene.add(keyLight);
+  }
+
+  setupThemeObserver() {
+    this.themeObserver = new MutationObserver(() => this.syncTheme());
+    this.themeObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    this.syncTheme();
+  }
+
+  syncTheme() {
+    this.material?.color.set(this.matrixCubeColor());
+    this.resize();
   }
 
   renderPreview() {
@@ -109,6 +122,10 @@ export default class extends Controller {
     const value = this[`${axis}CountValue`];
 
     return Number.isInteger(value) && value > 0 ? value : DEFAULT_COUNT;
+  }
+
+  matrixCubeColor() {
+    return getComputedStyle(document.body).getPropertyValue("--matrix-cube-color").trim() || "#d8d8d8";
   }
 
   previewZoom() {

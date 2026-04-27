@@ -12,13 +12,22 @@ const MIN_CAMERA_ZOOM = 0.5;
 const MAX_CAMERA_ZOOM = 1.45;
 const ZOOM_SPEED = 0.0025;
 const DEFAULT_MATRIX_COUNT = 3;
+const SLICE_FOCUS_DELAY = 1700;
+const SLICE_SWITCH_DELAY = 400;
+const SLICE_CLEAR_DELAY = 700;
+const NEIGHBOR_SLICE_OPACITY = 0.2;
+const SECOND_NEIGHBOR_SLICE_OPACITY = 0.1;
+const INVISIBLE_SLICE_OPACITY = 0;
+const SLICE_OPACITY_DAMPING = 18;
+const FOCUS_PIE_VISIBLE_DELAY = 700;
 
 export default class extends Controller {
-  static targets = ["canvas"];
+  static targets = ["canvas", "focusPie"];
   static values = {
     xCount: Number,
     yCount: Number,
-    zCount: Number
+    zCount: Number,
+    axes: { type: Boolean, default: true }
   };
 
   connect() {
@@ -27,12 +36,17 @@ export default class extends Controller {
     this.previousPointer = { x: 0, y: 0 };
     this.pendingVerticalDrag = 0;
     this.clock = new THREE.Clock();
-    this.xCoordinates = this.coordinateRange(this.countValue("x"));
-    this.yCoordinates = this.coordinateRange(this.countValue("y"));
-    this.zCoordinates = this.coordinateRange(this.countValue("z"));
+    this.sliceFocusActive = false;
+    this.activeSlice = null;
+    this.hoveredSlice = null;
+    this.pendingSlice = null;
+    this.pendingSliceStartedAt = null;
+    this.lastMatrixHoverEndedAt = null;
+    this.focusPieProgress = 0;
 
     this.setupScene();
     this.setupEvents();
+    this.setupThemeObserver();
     this.resize();
     this.animate();
   }
@@ -40,22 +54,36 @@ export default class extends Controller {
   disconnect() {
     cancelAnimationFrame(this.animationFrame);
     this.resizeObserver?.disconnect();
+    this.themeObserver?.disconnect();
 
     this.element.removeEventListener("pointerdown", this.onPointerDown);
-      this.element.removeEventListener("pointermove", this.onPointerMove);
-      this.element.removeEventListener("pointerup", this.onPointerUp);
-      this.element.removeEventListener("pointercancel", this.onPointerUp);
-      this.element.removeEventListener("wheel", this.onWheel);
+    this.element.removeEventListener("pointermove", this.onPointerMove);
+    this.element.removeEventListener("pointerup", this.onPointerUp);
+    this.element.removeEventListener("pointercancel", this.onPointerUp);
+    this.element.removeEventListener("pointerleave", this.onPointerLeave);
+    this.element.removeEventListener("wheel", this.onWheel);
 
     this.geometry?.dispose();
     this.whiteMaterial?.dispose();
+    this.disposeWhiteCubeMaterials();
     this.limeMaterial?.dispose();
     this.yellowMaterial?.dispose();
     this.renderer?.dispose();
   }
 
+  updateDimensions(xCount, yCount, zCount) {
+    this.xCountValue = xCount;
+    this.yCountValue = yCount;
+    this.zCountValue = zCount;
+    this.rebuildCubes();
+    this.clearSliceFocus();
+    this.camera.zoom = this.defaultCameraZoom();
+    this.camera.updateProjectionMatrix();
+  }
+
   setupScene() {
     this.scene = new THREE.Scene();
+    this.updateCoordinateRanges();
 
     this.camera = new THREE.OrthographicCamera(
       -ORTHOGRAPHIC_VIEW_SIZE / 2,
@@ -76,22 +104,17 @@ export default class extends Controller {
     });
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.raycaster = new THREE.Raycaster();
+    this.pointer = new THREE.Vector2();
 
     this.geometry = new THREE.BoxGeometry(0.72, 0.72, 0.72);
-    this.whiteMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.42, metalness: 0.02 });
+    this.whiteMaterial = new THREE.MeshStandardMaterial({ color: this.matrixCubeColor(), roughness: 0.42, metalness: 0.02, transparent: true });
     this.limeMaterial = new THREE.MeshStandardMaterial({ color: 0x40ff00, roughness: 0.44, metalness: 0.02 });
     this.yellowMaterial = new THREE.MeshStandardMaterial({ color: 0xffe100, roughness: 0.44, metalness: 0.02 });
     this.cube = new THREE.Group();
-    this.yAxisCubes = [];
-    this.xAxisCubes = [];
-    this.zAxisCubes = [];
-    this.axisCubes = [];
 
-    this.addWhiteCubes();
-    this.addAxisCubes();
-
-    this.cube.rotation.set(-0.35, 0.55, 0);
-    this.updateAxisPositions(true);
+    this.cube.rotation.set(0.45, 0.55, 0);
+    this.rebuildCubes(true);
     this.scene.add(this.cube);
 
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 2.1));
@@ -101,14 +124,55 @@ export default class extends Controller {
     this.scene.add(keyLight);
   }
 
+  rebuildCubes(immediate = false) {
+    this.disposeWhiteCubeMaterials();
+    this.cube.clear();
+    this.updateCoordinateRanges();
+    this.yAxisCubes = [];
+    this.xAxisCubes = [];
+    this.zAxisCubes = [];
+    this.axisCubes = [];
+    this.whiteCubes = [];
+    this.whiteCubeMaterials = [];
+    this.clearSliceFocus();
+
+    this.addWhiteCubes();
+
+    if (this.axesValue) {
+      this.addAxisCubes();
+      this.updateAxisPositions(immediate);
+    }
+  }
+
+  updateCoordinateRanges() {
+    this.xCoordinates = this.coordinateRange(this.countValue("x"));
+    this.yCoordinates = this.coordinateRange(this.countValue("y"));
+    this.zCoordinates = this.coordinateRange(this.countValue("z"));
+  }
+
   addWhiteCubes() {
     this.xCoordinates.forEach((x) => {
       this.yCoordinates.forEach((y) => {
         this.zCoordinates.forEach((z) => {
-          this.addCube(this.whiteMaterial, x, y, z);
+          this.addWhiteCube(x, y, z);
         });
       });
     });
+  }
+
+  addWhiteCube(x, y, z) {
+    const material = this.whiteMaterial.clone();
+    const cubelet = this.addCube(material, x, y, z);
+
+    material.transparent = true;
+    material.opacity = 1;
+    material.depthWrite = true;
+    this.whiteCubeMaterials.push(material);
+    this.whiteCubes.push(cubelet);
+    cubelet.userData.matrixSlice = z;
+    cubelet.userData.targetOpacity = 1;
+
+    return cubelet;
   }
 
   addAxisCubes() {
@@ -152,6 +216,8 @@ export default class extends Controller {
   }
 
   updateAxisPositions(immediate = false) {
+    if (!this.axesValue) return;
+
     const closestCorner = this.closestCorner();
     const yAxisCorner = this.leftmostVisibleVerticalCorner(closestCorner);
     const outsideX = this.outsideCoordinate("x");
@@ -184,11 +250,17 @@ export default class extends Controller {
   }
 
   updateAnimatedAxisPositions(delta) {
+    if (!this.axesValue) return;
+
     this.axisCubes.forEach((cubelet) => {
       cubelet.position.x = THREE.MathUtils.damp(cubelet.position.x, cubelet.userData.targetPosition.x, AXIS_MOVE_DAMPING, delta);
       cubelet.position.y = THREE.MathUtils.damp(cubelet.position.y, cubelet.userData.targetPosition.y, AXIS_MOVE_DAMPING, delta);
       cubelet.position.z = THREE.MathUtils.damp(cubelet.position.z, cubelet.userData.targetPosition.z, AXIS_MOVE_DAMPING, delta);
     });
+  }
+
+  disposeWhiteCubeMaterials() {
+    this.whiteCubeMaterials?.forEach((material) => material.dispose());
   }
 
   closestCorner() {
@@ -276,12 +348,18 @@ export default class extends Controller {
       this.pointerId = event.pointerId;
       this.previousPointer = { x: event.clientX, y: event.clientY };
       this.pendingVerticalDrag = 0;
+      this.resetSliceHoverTimers();
       this.element.classList.add("is-dragging");
       this.element.setPointerCapture(event.pointerId);
     };
 
     this.onPointerMove = (event) => {
-      if (!this.dragging || event.pointerId !== this.pointerId) return;
+      if (!this.dragging) {
+        this.updateHoveredMatrixSlice(event);
+        return;
+      }
+
+      if (event.pointerId !== this.pointerId) return;
 
       const deltaX = event.clientX - this.previousPointer.x;
       const deltaY = event.clientY - this.previousPointer.y;
@@ -298,25 +376,205 @@ export default class extends Controller {
       this.dragging = false;
       this.pointerId = null;
       this.element.classList.remove("is-dragging");
+      this.updateHoveredMatrixSlice(event);
 
       if (this.element.hasPointerCapture(event.pointerId)) {
         this.element.releasePointerCapture(event.pointerId);
       }
-      };
+    };
 
-      this.onWheel = (event) => {
-        event.preventDefault();
-        this.zoom(event.deltaY);
-      };
+    this.onPointerLeave = () => {
+      if (!this.dragging) this.markMatrixHoverEnded();
+    };
 
-      this.element.addEventListener("pointerdown", this.onPointerDown);
-      this.element.addEventListener("pointermove", this.onPointerMove);
-      this.element.addEventListener("pointerup", this.onPointerUp);
-      this.element.addEventListener("pointercancel", this.onPointerUp);
-      this.element.addEventListener("wheel", this.onWheel, { passive: false });
+    this.onWheel = (event) => {
+      event.preventDefault();
+      this.zoom(event.deltaY);
+    };
 
-      this.resizeObserver = new ResizeObserver(() => this.resize());
-      this.resizeObserver.observe(this.element);
+    this.element.addEventListener("pointerdown", this.onPointerDown);
+    this.element.addEventListener("pointermove", this.onPointerMove);
+    this.element.addEventListener("pointerup", this.onPointerUp);
+    this.element.addEventListener("pointercancel", this.onPointerUp);
+    this.element.addEventListener("pointerleave", this.onPointerLeave);
+    this.element.addEventListener("wheel", this.onWheel, { passive: false });
+
+    this.resizeObserver = new ResizeObserver(() => this.resize());
+    this.resizeObserver.observe(this.element);
+  }
+
+  setupThemeObserver() {
+    this.themeObserver = new MutationObserver(() => this.syncTheme());
+    this.themeObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    this.syncTheme();
+  }
+
+  syncTheme() {
+    this.whiteMaterial?.color.set(this.matrixCubeColor());
+    this.whiteCubeMaterials?.forEach((material) => material.color.set(this.matrixCubeColor()));
+  }
+
+  matrixCubeColor() {
+    return getComputedStyle(document.body).getPropertyValue("--matrix-cube-color").trim() || "#d8d8d8";
+  }
+
+  updateHoveredMatrixSlice(event) {
+    if (!this.sliceFocusAllowed()) return;
+
+    const hit = this.matrixCubeHit(event);
+
+    if (!hit) {
+      this.markMatrixHoverEnded();
+      return;
+    }
+
+    const slice = hit.object.userData.matrixSlice;
+    this.hoveredSlice = slice;
+    this.lastMatrixHoverEndedAt = null;
+
+    if (this.sliceFocusActive && this.activeSlice === slice) {
+      this.pendingSlice = null;
+      this.pendingSliceStartedAt = null;
+      return;
+    }
+
+    if (this.pendingSlice !== slice) {
+      this.pendingSlice = slice;
+      this.pendingSliceStartedAt = performance.now();
+    }
+  }
+
+  matrixCubeHit(event) {
+    if (!this.whiteCubes?.length) return null;
+
+    const bounds = this.canvasTarget.getBoundingClientRect();
+    this.pointer.x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
+    this.pointer.y = -((event.clientY - bounds.top) / bounds.height) * 2 + 1;
+    this.cube.updateMatrixWorld(true);
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+
+    return this.raycaster.intersectObjects(this.whiteCubes, false)[0] || null;
+  }
+
+  markMatrixHoverEnded() {
+    this.hoveredSlice = null;
+    this.pendingSlice = null;
+    this.pendingSliceStartedAt = null;
+
+    if (this.sliceFocusActive && !this.lastMatrixHoverEndedAt) {
+      this.lastMatrixHoverEndedAt = performance.now();
+    }
+  }
+
+  resetSliceHoverTimers() {
+    this.pendingSlice = null;
+    this.pendingSliceStartedAt = null;
+    this.lastMatrixHoverEndedAt = null;
+    this.setFocusPieProgress(0);
+  }
+
+  updateSliceFocus() {
+    if (!this.sliceFocusAllowed()) {
+      this.clearSliceFocus();
+      return;
+    }
+
+    if (this.dragging) return;
+
+    const now = performance.now();
+
+    if (!this.sliceFocusActive) {
+      if (this.hoveredSlice === null || this.pendingSlice === null) return;
+      if (now - this.pendingSliceStartedAt >= SLICE_FOCUS_DELAY) this.enableSliceFocus(this.pendingSlice);
+      return;
+    }
+
+    if (this.hoveredSlice === null) {
+      if (this.lastMatrixHoverEndedAt && now - this.lastMatrixHoverEndedAt >= SLICE_CLEAR_DELAY) {
+        this.clearSliceFocus();
+      }
+      return;
+    }
+
+    if (this.hoveredSlice !== this.activeSlice && this.pendingSlice === this.hoveredSlice && now - this.pendingSliceStartedAt >= SLICE_SWITCH_DELAY) {
+      this.enableSliceFocus(this.pendingSlice);
+    }
+  }
+
+  updateFocusPieProgress() {
+    if (!this.hasFocusPieTarget) return;
+
+    if (!this.sliceFocusAllowed() || this.dragging || this.sliceFocusActive || this.hoveredSlice === null || this.pendingSlice === null || !this.pendingSliceStartedAt) {
+      this.setFocusPieProgress(0);
+      return;
+    }
+
+    const elapsed = performance.now() - this.pendingSliceStartedAt;
+
+    if (elapsed < FOCUS_PIE_VISIBLE_DELAY) {
+      this.setFocusPieProgress(0);
+      return;
+    }
+
+    const progress = (elapsed - FOCUS_PIE_VISIBLE_DELAY) / (SLICE_FOCUS_DELAY - FOCUS_PIE_VISIBLE_DELAY);
+    this.setFocusPieProgress(THREE.MathUtils.clamp(progress, 0, 1));
+  }
+
+  setFocusPieProgress(progress) {
+    if (!this.hasFocusPieTarget || this.focusPieProgress === progress) return;
+
+    this.focusPieProgress = progress;
+    this.focusPieTarget.style.setProperty("--matrix-focus-progress", `${progress * 100}%`);
+    this.focusPieTarget.classList.toggle("is-visible", progress > 0);
+  }
+
+  enableSliceFocus(slice) {
+    this.sliceFocusActive = true;
+    this.activeSlice = slice;
+    this.pendingSlice = null;
+    this.pendingSliceStartedAt = null;
+    this.lastMatrixHoverEndedAt = null;
+    this.applySliceOpacity();
+  }
+
+  clearSliceFocus() {
+    this.sliceFocusActive = false;
+    this.activeSlice = null;
+    this.pendingSlice = null;
+    this.pendingSliceStartedAt = null;
+    this.lastMatrixHoverEndedAt = null;
+    this.applySliceOpacity();
+  }
+
+  applySliceOpacity() {
+    this.whiteCubes?.forEach((cubelet) => {
+      cubelet.userData.targetOpacity = this.targetOpacityForCube(cubelet);
+    });
+  }
+
+  sliceFocusAllowed() {
+    return this.countValue("x") > 2 && this.countValue("y") > 2 && this.countValue("z") > 2;
+  }
+
+  targetOpacityForCube(cubelet) {
+    if (!this.sliceFocusActive) return 1;
+
+    const distance = Math.abs(cubelet.userData.matrixSlice - this.activeSlice);
+
+    if (distance === 0) return 1;
+    if (distance === 1) return NEIGHBOR_SLICE_OPACITY;
+    if (distance === 2) return SECOND_NEIGHBOR_SLICE_OPACITY;
+
+    return INVISIBLE_SLICE_OPACITY;
+  }
+
+  updateSliceOpacity(delta) {
+    this.whiteCubes?.forEach((cubelet) => {
+      const targetOpacity = cubelet.userData.targetOpacity ?? 1;
+
+      cubelet.material.opacity = THREE.MathUtils.damp(cubelet.material.opacity, targetOpacity, SLICE_OPACITY_DAMPING, delta);
+      cubelet.material.depthWrite = cubelet.material.opacity > 0.92;
+    });
   }
 
   applyVerticalDrag(deltaY) {
@@ -360,7 +618,12 @@ export default class extends Controller {
   }
 
   animate() {
-    this.updateAnimatedAxisPositions(this.clock.getDelta());
+    const delta = this.clock.getDelta();
+
+    this.updateSliceFocus();
+    this.updateFocusPieProgress();
+    this.updateSliceOpacity(delta);
+    this.updateAnimatedAxisPositions(delta);
     this.renderer.render(this.scene, this.camera);
     this.animationFrame = requestAnimationFrame(() => this.animate());
   }

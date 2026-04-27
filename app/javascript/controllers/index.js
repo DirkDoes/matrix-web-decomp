@@ -5,8 +5,8 @@ const application = Application.start();
 import ProfileMenuController from "controllers/profile_menu_controller";
 application.register("profile-menu", ProfileMenuController);
 
-import RotatingCubeController from "controllers/rotating_cube_controller";
-application.register("rotating-cube", RotatingCubeController);
+import MatrixViewerController from "controllers/matrix_viewer_controller";
+application.register("matrix-viewer", MatrixViewerController);
 
 import MatrixFormController from "controllers/matrix_form_controller";
 application.register("matrix-form", MatrixFormController);

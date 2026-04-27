@@ -4,7 +4,7 @@ export default class extends Controller {
   static targets = ["xInput", "yInput", "zInput", "preview"];
 
   update() {
-    const previewController = this.application.getControllerForElementAndIdentifier(this.previewTarget, "matrix-preview");
+    const previewController = this.application.getControllerForElementAndIdentifier(this.previewTarget, "matrix-viewer");
 
     previewController?.updateDimensions(
       this.dimensionValue(this.xInputTarget),

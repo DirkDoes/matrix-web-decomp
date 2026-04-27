@@ -3,10 +3,11 @@
 <section class="dashboard-cube-page matrix-show-page" aria-label="<%= @base_matrix.title %> interactive matrix">
   <div
     class="dashboard-cube-stage"
-    data-controller="rotating-cube"
-    data-rotating-cube-x-count-value="<%= @base_matrix.x_count %>"
-    data-rotating-cube-y-count-value="<%= @base_matrix.y_count %>"
-    data-rotating-cube-z-count-value="<%= @base_matrix.z_count %>">
-    <canvas class="dashboard-cube-canvas" data-rotating-cube-target="canvas" aria-label="Draggable 3D matrix"></canvas>
+    data-controller="matrix-viewer"
+    data-matrix-viewer-x-count-value="<%= @base_matrix.x_count %>"
+    data-matrix-viewer-y-count-value="<%= @base_matrix.y_count %>"
+    data-matrix-viewer-z-count-value="<%= @base_matrix.z_count %>">
+    <canvas class="dashboard-cube-canvas" data-matrix-viewer-target="canvas" aria-label="Draggable 3D matrix"></canvas>
+    <span class="matrix-focus-pie" data-matrix-viewer-target="focusPie" aria-hidden="true"></span>
   </div>
 </section>

@@ -41,14 +41,19 @@
         </div>
       </div>
 
-      <div class="matrix-form-preview">
+      <div
+        class="matrix-form-preview dashboard-cube-stage"
+        data-controller="matrix-viewer"
+        data-matrix-form-target="preview"
+        data-matrix-viewer-axes-value="false"
+        data-matrix-viewer-x-count-value="<%= base_matrix.x_count %>"
+        data-matrix-viewer-y-count-value="<%= base_matrix.y_count %>"
+        data-matrix-viewer-z-count-value="<%= base_matrix.z_count %>">
         <canvas
-          data-controller="matrix-preview"
-          data-matrix-form-target="preview"
-          data-matrix-preview-x-count-value="<%= base_matrix.x_count %>"
-          data-matrix-preview-y-count-value="<%= base_matrix.y_count %>"
-          data-matrix-preview-z-count-value="<%= base_matrix.z_count %>"
-          aria-label="Matrix preview"></canvas>
+          class="dashboard-cube-canvas"
+          data-matrix-viewer-target="canvas"
+          aria-label="Interactive matrix preview"></canvas>
+        <span class="matrix-focus-pie" data-matrix-viewer-target="focusPie" aria-hidden="true"></span>
       </div>
     </div>
   <% end %>

@@ -13,7 +13,7 @@ class BaseMatrix < ApplicationRecord
   before_validation :build_matrix
 
   def size_label
-    "#{x_count} * #{y_count} * #{z_count}"
+    "#{x_count} • #{y_count} • #{z_count}"
   end
 
   private

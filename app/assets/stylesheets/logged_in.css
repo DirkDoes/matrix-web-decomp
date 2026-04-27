@@ -7,6 +7,13 @@
   --app-shell-divider: #d6d6d6;
   --app-shell-text: #111111;
   --app-shell-muted: #6b6b6b;
+  --matrix-card-bg: #ffffff;
+  --matrix-card-preview-bg: #ffffff;
+  --matrix-card-body-bg: #eeeeee;
+  --matrix-card-border: #3a3a3a;
+  --matrix-card-text: #111111;
+  --matrix-card-muted: #111111;
+  --matrix-cube-color: #d8d8d8;
   --app-shell-sidebar: #050505;
   --app-shell-sidebar-raised: #141414;
   --app-shell-sidebar-hover: #202020;
@@ -28,6 +35,13 @@
     --app-shell-text: #f4f4f4;
     --app-shell-muted: #a0a0a0;
     --app-shell-cyan: #ffffff;
+    --matrix-card-bg: #111111;
+    --matrix-card-preview-bg: #111111;
+    --matrix-card-body-bg: #111111;
+    --matrix-card-border: #8d8d8d;
+    --matrix-card-text: #f4f4f4;
+    --matrix-card-muted: #f4f4f4;
+    --matrix-cube-color: #ffffff;
   }
 }
 
@@ -41,6 +55,13 @@
   --app-shell-text: #111111;
   --app-shell-muted: #6b6b6b;
   --app-shell-cyan: #111111;
+  --matrix-card-bg: #ffffff;
+  --matrix-card-preview-bg: #ffffff;
+  --matrix-card-body-bg: #eeeeee;
+  --matrix-card-border: #3a3a3a;
+  --matrix-card-text: #111111;
+  --matrix-card-muted: #111111;
+  --matrix-cube-color: #d8d8d8;
 }
 
 .logged-in-body.theme-dark {
@@ -53,6 +74,13 @@
   --app-shell-text: #f4f4f4;
   --app-shell-muted: #a0a0a0;
   --app-shell-cyan: #ffffff;
+  --matrix-card-bg: #111111;
+  --matrix-card-preview-bg: #111111;
+  --matrix-card-body-bg: #111111;
+  --matrix-card-border: #8d8d8d;
+  --matrix-card-text: #f4f4f4;
+  --matrix-card-muted: #f4f4f4;
+  --matrix-cube-color: #ffffff;
 }
 
 body.logged-in-body {
@@ -75,6 +103,7 @@ body.logged-in-body {
 
 .logged-in-sidebar {
   box-sizing: border-box;
+  z-index: 40;
   background: var(--app-shell-sidebar);
   color: var(--app-shell-sidebar-text);
   min-height: 100vh;
@@ -265,7 +294,7 @@ body.logged-in-body {
   position: absolute;
   left: calc(100% + 0.9rem);
   bottom: 0.15rem;
-  z-index: 10;
+  z-index: 120;
   width: 13rem;
   padding: 0.35rem;
   border: 1px solid var(--app-shell-border);
@@ -497,6 +526,8 @@ body.logged-in-body {
 }
 
 .logged-in-main {
+  position: relative;
+  z-index: 0;
   min-width: 0;
   background: var(--app-shell-surface);
   padding: 2.5rem;
@@ -816,6 +847,7 @@ body.logged-in-body {
 }
 
 .dashboard-cube-stage {
+  position: relative;
   width: min(42rem, 100%);
   aspect-ratio: 1;
   cursor: grab;
@@ -830,6 +862,32 @@ body.logged-in-body {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+.matrix-focus-pie {
+  --matrix-focus-progress: 0%;
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  background: conic-gradient(var(--app-shell-text) var(--matrix-focus-progress), transparent 0);
+  transition: opacity 0.12s ease;
+}
+
+.matrix-focus-pie.is-visible {
+  opacity: 0.8;
+}
+
+.matrix-focus-pie::after {
+  content: "";
+  position: absolute;
+  inset: 0.34rem;
+  border-radius: 50%;
+  background: var(--app-shell-surface);
 }
 
 .matrices-page,
@@ -859,10 +917,10 @@ body.logged-in-body {
 .matrix-card {
   position: relative;
   min-height: 17rem;
-  border: 2px solid #d7d7d7;
-  border-radius: 1.4rem;
-  background: #111111;
-  color: #f4f4f4;
+  border: 0;
+  border-radius: 0;
+  background: var(--matrix-card-bg);
+  color: var(--matrix-card-text);
   overflow: visible;
 }
 
@@ -877,6 +935,10 @@ body.logged-in-body {
 .matrix-card-preview {
   min-height: 0;
   padding: 0.65rem 0.9rem 0;
+  border: 1px solid var(--matrix-card-border);
+  border-bottom: 0;
+  border-radius: 1.3rem 1.3rem 0 0;
+  background: var(--matrix-card-preview-bg);
 }
 
 .matrix-card-preview canvas {
@@ -887,12 +949,14 @@ body.logged-in-body {
 
 .matrix-card-body {
   padding: 0.7rem 1rem 1rem;
-  border-top: 2px solid #d7d7d7;
+  border: 1px solid var(--matrix-card-border);
+  border-radius: 0 0 1.3rem 1.3rem;
+  background: var(--matrix-card-body-bg);
 }
 
 .matrix-card-body h2 {
   margin: 0;
-  color: #f4f4f4;
+  color: var(--matrix-card-text);
   font-size: 1rem;
   font-weight: 700;
   line-height: 1.25;
@@ -900,28 +964,28 @@ body.logged-in-body {
 
 .matrix-card-body p {
   margin-top: 0.55rem;
-  color: #f4f4f4;
+  color: var(--matrix-card-muted);
   font-weight: 800;
   letter-spacing: 0.02em;
 }
 
 .matrix-card-menu {
   position: absolute;
-  top: 0.65rem;
-  right: 0.65rem;
-  z-index: 3;
+  top: 0.35rem;
+  right: 0.35rem;
+  z-index: 20;
 }
 
 .matrix-card-menu-button {
   list-style: none;
-  width: 2rem;
-  height: 2rem;
+  width: 3rem;
+  height: 3rem;
   display: grid;
   place-items: center;
   grid-template-columns: repeat(3, 0.22rem);
   gap: 0.16rem;
   border-radius: 999px;
-  color: #f4f4f4;
+  color: var(--matrix-card-text);
   cursor: pointer;
 }
 
@@ -940,6 +1004,7 @@ body.logged-in-body {
   position: absolute;
   top: calc(100% + 0.4rem);
   right: 0;
+  z-index: 30;
   width: 8.5rem;
   padding: 0.35rem;
   border: 1px solid var(--app-shell-border);
@@ -975,7 +1040,10 @@ body.logged-in-body {
 .matrix-card-create {
   display: grid;
   place-items: center;
-  color: #d7d7d7;
+  border: 1px solid var(--matrix-card-border);
+  border-radius: 1.3rem;
+  background: var(--matrix-card-bg);
+  color: var(--matrix-card-text);
   text-decoration: none;
 }
 

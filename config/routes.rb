@@ -9,6 +9,8 @@ Rails.application.routes.draw do
   get "settings", to: redirect("/settings/users")
 
   root "landing#show"
-  resources :base_matrices, path: "matrices"
+  resources :base_tensors, path: "tensors" do
+    post :template_preview, on: :collection
+  end
   get "overview", to: "overview#show", as: :overview
 end

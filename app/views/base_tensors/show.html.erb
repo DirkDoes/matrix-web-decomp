@@ -1,0 +1,13 @@
+<% content_for :title, "#{@base_tensor.title} - Detrix" %>
+
+<section class="dashboard-cube-page tensor-show-page" aria-label="<%= @base_tensor.title %> interactive tensor">
+  <div
+    class="dashboard-cube-stage"
+    data-controller="tensor-viewer"
+    data-tensor-viewer-x-count-value="<%= @base_tensor.x_count %>"
+    data-tensor-viewer-y-count-value="<%= @base_tensor.y_count %>"
+    data-tensor-viewer-z-count-value="<%= @base_tensor.z_count %>"
+    data-tensor-viewer-tensor-value="<%= @base_tensor.tensor.to_json %>">
+    <canvas class="dashboard-cube-canvas" data-tensor-viewer-target="canvas" aria-label="Draggable 3D tensor"></canvas>
+  </div>
+</section>

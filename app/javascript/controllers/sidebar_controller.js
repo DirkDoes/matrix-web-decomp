@@ -34,7 +34,7 @@ export default class extends Controller {
 
   keyForPath(path) {
     if (path.startsWith("/settings")) return "settings";
-    if (path.startsWith("/matrices")) return "matrices";
+    if (path.startsWith("/tensors")) return "tensors";
 
     return "dashboard";
   }

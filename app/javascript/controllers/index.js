@@ -5,14 +5,14 @@ const application = Application.start();
 import ProfileMenuController from "controllers/profile_menu_controller";
 application.register("profile-menu", ProfileMenuController);
 
-import MatrixViewerController from "controllers/matrix_viewer_controller";
-application.register("matrix-viewer", MatrixViewerController);
+import TensorViewerController from "controllers/tensor_viewer_controller";
+application.register("tensor-viewer", TensorViewerController);
 
-import MatrixFormController from "controllers/matrix_form_controller";
-application.register("matrix-form", MatrixFormController);
+import TensorFormController from "controllers/tensor_form_controller";
+application.register("tensor-form", TensorFormController);
 
-import MatrixPreviewController from "controllers/matrix_preview_controller";
-application.register("matrix-preview", MatrixPreviewController);
+import TensorPreviewController from "controllers/tensor_preview_controller";
+application.register("tensor-preview", TensorPreviewController);
 
 import SidebarController from "controllers/sidebar_controller";
 application.register("sidebar", SidebarController);

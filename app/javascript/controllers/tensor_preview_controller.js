@@ -4,12 +4,18 @@ import * as THREE from "three";
 const DEFAULT_COUNT = 3;
 const CUBE_SPACING = 0.78;
 const VIEW_SIZE = 5.6;
+const TENSOR_VALUE_COLORS = {
+  "-1": "#00346b",
+  0: null,
+  1: "#ff9500"
+};
 
 export default class extends Controller {
   static values = {
     xCount: Number,
     yCount: Number,
-    zCount: Number
+    zCount: Number,
+    tensor: Array
   };
 
   connect() {
@@ -53,7 +59,7 @@ export default class extends Controller {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 
     this.geometry = new THREE.BoxGeometry(0.56, 0.56, 0.56);
-    this.material = new THREE.MeshStandardMaterial({ color: this.matrixCubeColor(), roughness: 0.48, metalness: 0.02 });
+    this.material = new THREE.MeshStandardMaterial({ color: this.tensorCubeColor(), roughness: 0.48, metalness: 0.02 });
     this.group = new THREE.Group();
     this.group.rotation.set(0.46, 0.68, 0);
     this.scene.add(this.group);
@@ -72,8 +78,8 @@ export default class extends Controller {
   }
 
   syncTheme() {
-    this.material?.color.set(this.matrixCubeColor());
-    this.resize();
+    this.material?.color.set(this.tensorCubeColor());
+    this.renderPreview();
   }
 
   renderPreview() {
@@ -82,8 +88,10 @@ export default class extends Controller {
     this.coordinateRange(this.countValue("x")).forEach((x) => {
       this.coordinateRange(this.countValue("y")).forEach((y) => {
         this.coordinateRange(this.countValue("z")).forEach((z) => {
-          const cubelet = new THREE.Mesh(this.geometry, this.material);
+          const material = this.material.clone();
+          const cubelet = new THREE.Mesh(this.geometry, material);
 
+          material.color.set(this.tensorColorForValue(this.tensorValueFor(x, y, z)));
           cubelet.position.set(x * CUBE_SPACING, y * CUBE_SPACING, z * CUBE_SPACING);
           this.group.add(cubelet);
         });
@@ -124,8 +132,28 @@ export default class extends Controller {
     return Number.isInteger(value) && value > 0 ? value : DEFAULT_COUNT;
   }
 
-  matrixCubeColor() {
-    return getComputedStyle(document.body).getPropertyValue("--matrix-cube-color").trim() || "#d8d8d8";
+  tensorCubeColor() {
+    return getComputedStyle(document.body).getPropertyValue("--tensor-cube-color").trim() || "#d8d8d8";
+  }
+
+  tensorValueFor(x, y, z) {
+    const xIndex = this.coordinateRange(this.countValue("x")).indexOf(x);
+    const yIndex = this.coordinateRange(this.countValue("y")).indexOf(y);
+    const zIndex = this.coordinateRange(this.countValue("z")).indexOf(z);
+
+    return this.normalizedTensorValue(this.tensorValue?.[zIndex]?.[yIndex]?.[xIndex]);
+  }
+
+  tensorColorForValue(value) {
+    return TENSOR_VALUE_COLORS[value] || this.tensorCubeColor();
+  }
+
+  normalizedTensorValue(value) {
+    const number = Number.parseInt(value, 10);
+
+    if (number > 0) return 1;
+    if (number < 0) return -1;
+    return 0;
   }
 
   previewZoom() {

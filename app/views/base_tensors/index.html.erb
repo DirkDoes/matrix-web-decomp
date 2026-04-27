@@ -1,0 +1,51 @@
+<% content_for :title, "Tensors - Detrix" %>
+
+<section class="tensors-page" aria-labelledby="tensors-title">
+  <header class="tensors-page-header">
+    <h1 id="tensors-title">Tensors</h1>
+  </header>
+
+  <div class="tensor-card-grid">
+    <% @base_tensors.each do |base_tensor| %>
+      <article class="tensor-card">
+        <details class="tensor-card-menu" data-controller="profile-menu">
+          <summary class="tensor-card-menu-button" aria-label="Open tensor actions">
+            <span></span>
+            <span></span>
+            <span></span>
+          </summary>
+
+          <div class="tensor-card-menu-panel">
+            <%= link_to "Edit", edit_base_tensor_path(base_tensor), class: "tensor-card-menu-link", data: { turbo_frame: "app_content", turbo_action: "advance" } %>
+            <%= button_to "Delete", base_tensor_path(base_tensor), method: :delete, class: "tensor-card-menu-button-link", form: { data: { turbo_confirm: "Delete this tensor?" } } %>
+          </div>
+        </details>
+
+        <%= link_to base_tensor_path(base_tensor), class: "tensor-card-link", data: { turbo_frame: "app_content", turbo_action: "advance" } do %>
+          <div class="tensor-card-preview">
+            <canvas
+              data-controller="tensor-preview"
+              data-tensor-preview-x-count-value="<%= base_tensor.x_count %>"
+              data-tensor-preview-y-count-value="<%= base_tensor.y_count %>"
+              data-tensor-preview-z-count-value="<%= base_tensor.z_count %>"
+              data-tensor-preview-tensor-value="<%= base_tensor.tensor.to_json %>"
+              aria-label="<%= base_tensor.title %> preview"></canvas>
+          </div>
+
+          <div class="tensor-card-body">
+            <h2><%= base_tensor.title %></h2>
+            <p><%= base_tensor.size_label %></p>
+          </div>
+        <% end %>
+      </article>
+    <% end %>
+
+    <%= link_to new_base_tensor_path, class: "tensor-card tensor-card-create", data: { turbo_frame: "app_content", turbo_action: "advance" }, aria: { label: "Create tensor" } do %>
+      <div class="tensor-card-create-preview" aria-hidden="true">
+        <span>+</span>
+      </div>
+
+      <div class="tensor-card-create-body" aria-hidden="true"></div>
+    <% end %>
+  </div>
+</section>

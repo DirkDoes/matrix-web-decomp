@@ -11,11 +11,12 @@ const DEFAULT_CAMERA_DISTANCE = 10;
 const MIN_CAMERA_ZOOM = 0.5;
 const MAX_CAMERA_ZOOM = 1.45;
 const ZOOM_SPEED = 0.0025;
-const DEFAULT_MATRIX_COUNT = 3;
+const DEFAULT_TENSOR_COUNT = 3;
 const SLICE_OPACITY_DAMPING = 18;
 const BUTTON_OPACITY_DAMPING = 9;
 const BUTTON_VISIBLE_DELAY = 1000;
 const BUTTON_HIDDEN_DELAY = 1000;
+const CLICK_DRAG_THRESHOLD = 6;
 const BUTTON_SIZE = 0.46;
 const CUBE_SIZE = 0.72;
 const BUTTON_SIDE_OFFSET = 0.82;
@@ -26,7 +27,13 @@ const BUTTON_HALF_OFFSET = BUTTON_SIZE / 2 / CUBE_SPACING;
 const BUTTON_GAP_OFFSET = BUTTON_WALL_GAP / CUBE_SPACING;
 const EYE_ICON_PATH = "/icons/eye-solid-full.svg";
 const EYE_SLASH_ICON_PATH = "/icons/eye-slash-solid-full.svg";
-const MATRIX_AXES = ["x", "y", "z"];
+const TENSOR_AXES = ["x", "y", "z"];
+const TENSOR_VALUE_COLORS = {
+  "-1": "#00346b",
+  0: null,
+  1: "#ff9500"
+};
+const SELECTED_TENSOR_CUBE_COLOR = 0xffe600;
 
 export default class extends Controller {
   static targets = ["canvas"];
@@ -34,6 +41,8 @@ export default class extends Controller {
     xCount: Number,
     yCount: Number,
     zCount: Number,
+    tensor: Array,
+    editable: { type: Boolean, default: false },
     axes: { type: Boolean, default: true }
   };
 
@@ -46,6 +55,12 @@ export default class extends Controller {
     this.pointerInside = false;
     this.pointerEnteredAt = null;
     this.pointerLeftAt = null;
+    this.selectedTensorCubes = new Set();
+    this.selectedTensorOutlines = new Map();
+    this.pendingTensorCube = null;
+    this.pointerStart = null;
+    this.pendingTensorCubeAdditive = false;
+    this.currentTensor = this.normalizedTensor(this.tensorValue);
 
     this.setupScene();
     this.setupEvents();
@@ -62,16 +77,19 @@ export default class extends Controller {
     this.element.removeEventListener("pointerdown", this.onPointerDown);
     this.element.removeEventListener("pointermove", this.onPointerMove);
     this.element.removeEventListener("pointerup", this.onPointerUp);
-    this.element.removeEventListener("pointercancel", this.onPointerUp);
+    this.element.removeEventListener("pointercancel", this.onPointerCancel);
     this.element.removeEventListener("pointerenter", this.onPointerEnter);
     this.element.removeEventListener("pointerleave", this.onPointerLeave);
     this.element.removeEventListener("wheel", this.onWheel);
+    this.colorPopup?.remove();
 
     this.geometry?.dispose();
     this.whiteMaterial?.dispose();
     this.disposeWhiteCubeMaterials();
     this.disposeButtonMaterials();
     this.buttonGeometry?.dispose();
+    this.selectedOutlineGeometry?.dispose();
+    this.selectedOutlineMaterial?.dispose();
     this.limeMaterial?.dispose();
     this.yellowMaterial?.dispose();
     this.renderer?.dispose();
@@ -82,9 +100,16 @@ export default class extends Controller {
     this.xCountValue = xCount;
     this.yCountValue = yCount;
     this.zCountValue = zCount;
+    this.currentTensor = this.blankTensor(xCount, yCount, zCount);
     this.rebuildCubes();
     this.camera.zoom = this.defaultCameraZoom();
     this.camera.updateProjectionMatrix();
+  }
+
+  updateTensor(tensor) {
+    this.currentTensor = this.normalizedTensor(tensor);
+    this.syncTensorCubeColors();
+    this.renderOnce();
   }
 
   setupScene() {
@@ -115,10 +140,12 @@ export default class extends Controller {
 
     this.geometry = new THREE.BoxGeometry(0.72, 0.72, 0.72);
     this.buttonGeometry = new THREE.PlaneGeometry(BUTTON_SIZE, BUTTON_SIZE);
+    this.selectedOutlineGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(0.8, 0.8, 0.8));
+    this.selectedOutlineMaterial = new THREE.LineBasicMaterial({ color: SELECTED_TENSOR_CUBE_COLOR, transparent: true, opacity: 0.95 });
     this.textureLoader = new THREE.TextureLoader();
     this.iconTextureColor = null;
     this.updateIconTextures();
-    this.whiteMaterial = new THREE.MeshStandardMaterial({ color: this.matrixCubeColor(), roughness: 0.42, metalness: 0.02, transparent: true });
+    this.whiteMaterial = new THREE.MeshStandardMaterial({ color: this.tensorCubeColor(), roughness: 0.42, metalness: 0.02, transparent: true });
     this.limeMaterial = new THREE.MeshStandardMaterial({ color: 0x40ff00, roughness: 0.44, metalness: 0.02 });
     this.yellowMaterial = new THREE.MeshStandardMaterial({ color: 0xffe100, roughness: 0.44, metalness: 0.02 });
     this.cube = new THREE.Group();
@@ -148,6 +175,7 @@ export default class extends Controller {
     this.whiteCubeMaterials = [];
     this.visibilityButtons = [];
     this.visibilityButtonMaterials = [];
+    this.clearTensorSelection();
 
     this.addWhiteCubes();
     this.addVisibilityButtons();
@@ -158,7 +186,7 @@ export default class extends Controller {
     }
 
     this.updateVisibilityButtonPositions(immediate);
-    this.applyMatrixVisibility();
+    this.applyTensorVisibility();
   }
 
   updateCoordinateRanges() {
@@ -169,7 +197,7 @@ export default class extends Controller {
 
   resetSliceVisibility() {
     this.sliceVisibility = Object.fromEntries(
-      MATRIX_AXES.map((axis) => [axis, this.coordinatesFor(axis).map(() => true)])
+      TENSOR_AXES.map((axis) => [axis, this.coordinatesFor(axis).map(() => true)])
     );
   }
 
@@ -192,18 +220,19 @@ export default class extends Controller {
     material.depthWrite = true;
     this.whiteCubeMaterials.push(material);
     this.whiteCubes.push(cubelet);
-    cubelet.userData.matrixIndices = {
+    cubelet.userData.tensorIndices = {
       x: this.coordinateIndex(this.xCoordinates, x),
       y: this.coordinateIndex(this.yCoordinates, y),
       z: this.coordinateIndex(this.zCoordinates, z)
     };
     cubelet.userData.targetOpacity = 1;
+    this.syncTensorCubeColor(cubelet);
 
     return cubelet;
   }
 
   addVisibilityButtons() {
-    MATRIX_AXES.forEach((axis) => {
+    TENSOR_AXES.forEach((axis) => {
       this.coordinatesFor(axis).forEach((_coordinate, index) => {
         this.visibilityButtons.push(this.addVisibilityButton(axis, index));
       });
@@ -601,7 +630,7 @@ export default class extends Controller {
   countValue(axis) {
     const value = this[`${axis}CountValue`];
 
-    return Number.isInteger(value) && value > 0 ? value : DEFAULT_MATRIX_COUNT;
+    return Number.isInteger(value) && value > 0 ? value : DEFAULT_TENSOR_COUNT;
   }
 
   coordinatesFor(axis) {
@@ -643,18 +672,37 @@ export default class extends Controller {
         return;
       }
 
-      this.dragging = true;
+      const tensorCube = this.editableValue && !this.axesValue ? this.tensorCubeHit(event) : null;
+
+      this.colorPopup?.remove();
+      this.dragging = false;
       this.pointerId = event.pointerId;
+      this.pointerStart = { x: event.clientX, y: event.clientY };
       this.previousPointer = { x: event.clientX, y: event.clientY };
+      this.pendingTensorCube = tensorCube;
+      this.pendingTensorCubeAdditive = event.shiftKey;
       this.pendingVerticalDrag = 0;
-      this.element.classList.add("is-dragging");
       this.element.setPointerCapture(event.pointerId);
     };
 
     this.onPointerMove = (event) => {
-      if (!this.dragging) return;
-
       if (event.pointerId !== this.pointerId) return;
+
+      if (!this.dragging) {
+        const movedDistance = Math.hypot(
+          event.clientX - this.pointerStart.x,
+          event.clientY - this.pointerStart.y
+        );
+
+        if (movedDistance < CLICK_DRAG_THRESHOLD) return;
+
+        this.dragging = true;
+        this.pendingTensorCube = null;
+        this.pendingTensorCubeAdditive = false;
+        this.colorPopup?.remove();
+        this.clearTensorSelection();
+        this.element.classList.add("is-dragging");
+      }
 
       const deltaX = event.clientX - this.previousPointer.x;
       const deltaY = event.clientY - this.previousPointer.y;
@@ -669,13 +717,34 @@ export default class extends Controller {
     this.onPointerUp = (event) => {
       if (event.pointerId !== this.pointerId) return;
 
+      const clickedTensorCube = !this.dragging ? this.pendingTensorCube : null;
+      const additiveSelection = !this.dragging ? this.pendingTensorCubeAdditive : false;
       this.dragging = false;
       this.pointerId = null;
+      this.pointerStart = null;
+      this.pendingTensorCube = null;
+      this.pendingTensorCubeAdditive = false;
       this.element.classList.remove("is-dragging");
 
       if (this.element.hasPointerCapture(event.pointerId)) {
         this.element.releasePointerCapture(event.pointerId);
       }
+
+      if (clickedTensorCube) {
+        event.preventDefault();
+        this.showColorPopup(clickedTensorCube, event, { additiveSelection });
+      }
+    };
+
+    this.onPointerCancel = (event) => {
+      if (event.pointerId !== this.pointerId) return;
+
+      this.dragging = false;
+      this.pointerId = null;
+      this.pointerStart = null;
+      this.pendingTensorCube = null;
+      this.pendingTensorCubeAdditive = false;
+      this.element.classList.remove("is-dragging");
     };
 
     this.onPointerLeave = () => {
@@ -694,7 +763,7 @@ export default class extends Controller {
     this.element.addEventListener("pointerdown", this.onPointerDown);
     this.element.addEventListener("pointermove", this.onPointerMove);
     this.element.addEventListener("pointerup", this.onPointerUp);
-    this.element.addEventListener("pointercancel", this.onPointerUp);
+    this.element.addEventListener("pointercancel", this.onPointerCancel);
     this.element.addEventListener("pointerenter", this.onPointerEnter);
     this.element.addEventListener("pointerleave", this.onPointerLeave);
     this.element.addEventListener("wheel", this.onWheel, { passive: false });
@@ -710,21 +779,21 @@ export default class extends Controller {
   }
 
   syncTheme() {
-    this.whiteMaterial?.color.set(this.matrixCubeColor());
-    this.whiteCubeMaterials?.forEach((material) => material.color.set(this.matrixCubeColor()));
+    this.whiteMaterial?.color.set(this.tensorCubeColor());
+    this.syncTensorCubeColors();
     this.updateIconTextures();
   }
 
-  matrixCubeColor() {
-    return getComputedStyle(document.body).getPropertyValue("--matrix-cube-color").trim() || "#d8d8d8";
+  tensorCubeColor() {
+    return getComputedStyle(document.body).getPropertyValue("--tensor-cube-color").trim() || "#d8d8d8";
   }
 
-  matrixButtonIconColor() {
-    return getComputedStyle(document.body).getPropertyValue("--matrix-button-icon-color").trim() || "#111111";
+  tensorButtonIconColor() {
+    return getComputedStyle(document.body).getPropertyValue("--tensor-button-icon-color").trim() || "#111111";
   }
 
   updateIconTextures() {
-    const color = this.matrixButtonIconColor();
+    const color = this.tensorButtonIconColor();
 
     if (this.iconTextureColor === color) return;
     this.iconTextureColor = color;
@@ -751,10 +820,7 @@ export default class extends Controller {
     if (!this.visibilityButtons?.length) return null;
     const bounds = this.canvasTarget.getBoundingClientRect();
 
-    this.pointer.x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
-    this.pointer.y = -((event.clientY - bounds.top) / bounds.height) * 2 + 1;
-    this.cube.updateMatrixWorld(true);
-    this.raycaster.setFromCamera(this.pointer, this.camera);
+    this.setRaycasterFromEvent(event, bounds);
 
     return this.raycaster.intersectObjects(this.visibilityButtons, false).find((hit) => {
       const { axis, index } = hit.object.userData;
@@ -763,10 +829,38 @@ export default class extends Controller {
     })?.object || null;
   }
 
+  tensorCubeHit(event) {
+    if (!this.whiteCubes?.length) return null;
+
+    this.setRaycasterFromEvent(event, this.canvasTarget.getBoundingClientRect());
+
+    return this.raycaster.intersectObjects(this.whiteCubes, false).find((hit) => {
+      return this.tensorCubeSelectable(hit.object);
+    })?.object || null;
+  }
+
+  tensorCubeSelectable(cubelet) {
+    const { x, y, z } = cubelet.userData.tensorIndices;
+
+    return cubelet.visible &&
+      cubelet.material.opacity > 0.5 &&
+      cubelet.userData.targetOpacity > 0.5 &&
+      this.sliceVisibility.x[x] &&
+      this.sliceVisibility.y[y] &&
+      this.sliceVisibility.z[z];
+  }
+
+  setRaycasterFromEvent(event, bounds) {
+    this.pointer.x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
+    this.pointer.y = -((event.clientY - bounds.top) / bounds.height) * 2 + 1;
+    this.cube.updateMatrixWorld(true);
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+  }
+
   toggleSliceVisibility(axis, index) {
     this.sliceVisibility[axis][index] = !this.sliceVisibility[axis][index];
     this.updateButtonIcon(axis, index);
-    this.applyMatrixVisibility();
+    this.applyTensorVisibility();
     this.updateVisibilityButtonTargets();
   }
 
@@ -786,12 +880,180 @@ export default class extends Controller {
     });
   }
 
-  applyMatrixVisibility() {
-    this.whiteCubes?.forEach((cubelet) => {
-      const indices = cubelet.userData.matrixIndices;
+  showColorPopup(cubelet, event, { additiveSelection = false } = {}) {
+    this.colorPopup?.remove();
 
-      cubelet.userData.targetOpacity = MATRIX_AXES.every((axis) => this.sliceVisibility[axis][indices[axis]]) ? 1 : 0;
+    if (additiveSelection) {
+      this.addSelectedTensorCube(cubelet);
+    } else {
+      this.selectOnlyTensorCube(cubelet);
+    }
+
+    const popup = document.createElement("div");
+    popup.className = "tensor-color-popup";
+    popup.addEventListener("pointerdown", (popupEvent) => popupEvent.stopPropagation());
+
+    [0, 1, -1].forEach((value) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "tensor-color-swatch";
+      button.setAttribute("aria-label", `Set tensor value to ${value}`);
+      button.addEventListener("click", () => {
+        this.setSelectedTensorCubeValues(value);
+        popup.remove();
+      });
+      const swatch = document.createElement("span");
+      swatch.className = "tensor-color-swatch-color";
+      swatch.style.background = this.tensorColorForValue(value);
+
+      const label = document.createElement("span");
+      label.className = "tensor-color-swatch-label";
+      label.textContent = value;
+
+      button.append(swatch, label);
+      popup.append(button);
     });
+
+    const bounds = this.element.getBoundingClientRect();
+
+    popup.style.left = `${event.clientX - bounds.left}px`;
+    popup.style.top = `${event.clientY - bounds.top}px`;
+    this.element.append(popup);
+    this.colorPopup = popup;
+  }
+
+  setTensorCubeValue(cubelet, value) {
+    const { x, y, z } = cubelet.userData.tensorIndices;
+
+    this.currentTensor = this.normalizedTensor(this.currentTensor);
+    this.currentTensor[z][y][x] = value;
+    this.syncTensorCubeColors();
+    this.selectTensorCube(cubelet);
+    this.element.dispatchEvent(new CustomEvent("tensor-value-change", {
+      bubbles: true,
+      detail: { tensor: this.currentTensor }
+    }));
+    this.renderOnce();
+  }
+
+  setSelectedTensorCubeValues(value) {
+    const selectedCubes = this.selectedTensorCubes.size > 0 ? Array.from(this.selectedTensorCubes) : [];
+
+    if (!selectedCubes.length) return;
+
+    this.currentTensor = this.normalizedTensor(this.currentTensor);
+    selectedCubes.forEach((cubelet) => {
+      const { x, y, z } = cubelet.userData.tensorIndices;
+
+      this.currentTensor[z][y][x] = value;
+    });
+    this.syncTensorCubeColors();
+    this.element.dispatchEvent(new CustomEvent("tensor-value-change", {
+      bubbles: true,
+      detail: { tensor: this.currentTensor }
+    }));
+    this.renderOnce();
+  }
+
+  syncTensorCubeColors() {
+    this.whiteCubes?.forEach((cubelet) => this.syncTensorCubeColor(cubelet));
+  }
+
+  syncTensorCubeColor(cubelet) {
+    const { x, y, z } = cubelet.userData.tensorIndices;
+
+    cubelet.material.color.set(this.tensorColorForValue(this.tensorValueFor(x, y, z)));
+    cubelet.material.needsUpdate = true;
+  }
+
+  selectTensorCube(cubelet) {
+    this.selectOnlyTensorCube(cubelet);
+  }
+
+  selectOnlyTensorCube(cubelet) {
+    this.clearTensorSelection();
+    this.addSelectedTensorCube(cubelet);
+  }
+
+  addSelectedTensorCube(cubelet) {
+    if (this.selectedTensorCubes.has(cubelet)) return;
+
+    this.selectedTensorCubes.add(cubelet);
+
+    const outline = new THREE.LineSegments(this.selectedOutlineGeometry, this.selectedOutlineMaterial);
+    outline.position.copy(cubelet.position);
+    this.cube.add(outline);
+    this.selectedTensorOutlines.set(cubelet, outline);
+  }
+
+  removeSelectedTensorCube(cubelet) {
+    if (!this.selectedTensorCubes.has(cubelet)) return;
+
+    const outline = this.selectedTensorOutlines.get(cubelet);
+
+    if (outline) {
+      this.cube.remove(outline);
+      this.selectedTensorOutlines.delete(cubelet);
+    }
+
+    this.selectedTensorCubes.delete(cubelet);
+  }
+
+  clearTensorSelection() {
+    if (!this.selectedTensorCubes?.size) return;
+
+    Array.from(this.selectedTensorCubes).forEach((cubelet) => this.removeSelectedTensorCube(cubelet));
+  }
+
+  clearSelectedTensorCube() {
+    this.clearTensorSelection();
+  }
+
+  tensorValueFor(x, y, z) {
+    return this.normalizedTensorValue(this.currentTensor?.[z]?.[y]?.[x]);
+  }
+
+  tensorColorForValue(value) {
+    return TENSOR_VALUE_COLORS[value] || this.tensorCubeColor();
+  }
+
+  normalizedTensor(tensor) {
+    const source = Array.isArray(tensor) ? tensor : [];
+
+    return Array.from({ length: this.countValue("z") }, (_zValue, z) => (
+      Array.from({ length: this.countValue("y") }, (_yValue, y) => (
+        Array.from({ length: this.countValue("x") }, (_xValue, x) => this.normalizedTensorValue(source?.[z]?.[y]?.[x]))
+      ))
+    ));
+  }
+
+  blankTensor(xCount, yCount, zCount) {
+    return Array.from({ length: zCount }, () => (
+      Array.from({ length: yCount }, () => Array.from({ length: xCount }, () => 0))
+    ));
+  }
+
+  normalizedTensorValue(value) {
+    const number = Number.parseInt(value, 10);
+
+    if (number > 0) return 1;
+    if (number < 0) return -1;
+    return 0;
+  }
+
+  applyTensorVisibility() {
+    this.whiteCubes?.forEach((cubelet) => {
+      const indices = cubelet.userData.tensorIndices;
+
+      cubelet.userData.targetOpacity = TENSOR_AXES.every((axis) => this.sliceVisibility[axis][indices[axis]]) ? 1 : 0;
+    });
+
+    const hiddenSelectedCubes = Array.from(this.selectedTensorCubes || []).filter((cubelet) => cubelet.userData.targetOpacity === 0);
+
+    if (hiddenSelectedCubes.length) {
+      hiddenSelectedCubes.forEach((cubelet) => this.removeSelectedTensorCube(cubelet));
+      this.colorPopup?.remove();
+    }
   }
 
   markPointerEntered() {

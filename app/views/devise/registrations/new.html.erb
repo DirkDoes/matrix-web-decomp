@@ -8,7 +8,10 @@
       <h1>Create Account</h1>
 
       <% if google_login_enabled %>
-        <%= button_to "Sign up with Google", user_google_oauth2_omniauth_authorize_path, method: :post, class: "btn btn-secondary btn-full public-google-button", data: { turbo: false } %>
+        <%= button_to user_google_oauth2_omniauth_authorize_path, method: :post, class: "btn btn-secondary btn-full public-google-button", data: { turbo: false } do %>
+          <%= image_tag "/icons/google.svg", alt: "", class: "public-google-button-icon", aria: { hidden: true } %>
+          <span>Sign up with Google</span>
+        <% end %>
         <div class="public-auth-divider"><span>or</span></div>
       <% end %>
 

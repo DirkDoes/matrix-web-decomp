@@ -16,6 +16,3 @@ application.register("tensor-preview", TensorPreviewController);
 
 import SidebarController from "controllers/sidebar_controller";
 application.register("sidebar", SidebarController);
-
-import ThemePreviewController from "controllers/theme_preview_controller";
-application.register("theme-preview", ThemePreviewController);

@@ -8,7 +8,6 @@
   end
   profile_initials = profile_initials.upcase.presence || "DE"
   settings_section = controller_path.start_with?("settings/")
-  theme_preference = current_user.theme_preference.presence_in(User::THEME_PREFERENCES) || "system"
   icon = ->(name) { File.read(Rails.root.join("public/icons/#{name}.svg")).html_safe }
   primary_nav_items = [
     {
@@ -43,7 +42,7 @@
     <%= javascript_importmap_tags "main" %>
   </head>
 
-  <body class="logged-in-body theme-<%= theme_preference %>">
+  <body class="logged-in-body">
     <% if overlay_flash_messages.any? %>
       <div class="app-flash-stack" aria-live="polite" aria-atomic="true">
         <% overlay_flash_messages.each do |flash_message| %>
@@ -65,7 +64,7 @@
             </span>
           </summary>
 
-          <div class="logged-in-mobile-context-menu logged-in-mobile-nav-panel">
+          <div class="app-context-menu logged-in-mobile-context-menu logged-in-mobile-nav-panel">
             <nav class="logged-in-mobile-nav" aria-label="Primary navigation">
               <% primary_nav_items.each do |item| %>
                 <%= link_to item[:path], class: "logged-in-sidebar-link #{'active' if item[:active]}", data: { sidebar_target: "item", sidebar_key: item[:key], action: "pointerdown->sidebar#select", turbo_frame: "app_content", turbo_action: "advance" } do %>
@@ -86,19 +85,19 @@
             <div class="logged-in-profile-avatar" aria-hidden="true"><%= profile_initials %></div>
           </summary>
 
-          <div class="logged-in-mobile-context-menu logged-in-mobile-profile-panel">
+          <div class="app-context-menu logged-in-mobile-context-menu logged-in-mobile-profile-panel">
             <div class="logged-in-mobile-profile-card">
               <p class="logged-in-mobile-profile-name"><%= profile_name %></p>
               <p class="logged-in-mobile-profile-email"><%= current_user.email_address %></p>
             </div>
 
             <% if settings_access? %>
-              <%= link_to "Settings", settings_path, class: "logged-in-context-link", data: { turbo_frame: "app_content", turbo_action: "advance", turbo_prefetch: false } %>
+              <%= link_to "Settings", settings_path, class: "app-context-menu-item logged-in-context-link", data: { turbo_frame: "app_content", turbo_action: "advance", turbo_prefetch: false } %>
             <% end %>
 
-            <%= link_to "Personal settings", edit_settings_user_path(current_user), class: "logged-in-context-link", data: { turbo_frame: "app_content", turbo_action: "advance", turbo_prefetch: false } %>
+            <%= link_to "Personal settings", edit_settings_user_path(current_user), class: "app-context-menu-item logged-in-context-link", data: { turbo_frame: "app_content", turbo_action: "advance", turbo_prefetch: false } %>
 
-            <%= button_to "Log out", destroy_user_session_path, method: :delete, class: "logged-in-context-logout" %>
+            <%= button_to "Log out", destroy_user_session_path, method: :delete, class: "app-context-menu-item logged-in-context-logout" %>
           </div>
         </details>
       </header>
@@ -138,14 +137,14 @@
                 </div>
               </summary>
 
-              <div class="logged-in-context-menu">
+              <div class="app-context-menu logged-in-context-menu">
                 <% if settings_access? %>
-                  <%= link_to "Settings", settings_path, class: "logged-in-context-link", data: { turbo_frame: "app_content", turbo_action: "advance", turbo_prefetch: false } %>
+                  <%= link_to "Settings", settings_path, class: "app-context-menu-item logged-in-context-link", data: { turbo_frame: "app_content", turbo_action: "advance", turbo_prefetch: false } %>
                 <% end %>
 
-                <%= link_to "Personal settings", edit_settings_user_path(current_user), class: "logged-in-context-link", data: { turbo_frame: "app_content", turbo_action: "advance", turbo_prefetch: false } %>
+                <%= link_to "Personal settings", edit_settings_user_path(current_user), class: "app-context-menu-item logged-in-context-link", data: { turbo_frame: "app_content", turbo_action: "advance", turbo_prefetch: false } %>
 
-                <%= button_to "Log out", destroy_user_session_path, method: :delete, class: "logged-in-context-logout" %>
+                <%= button_to "Log out", destroy_user_session_path, method: :delete, class: "app-context-menu-item logged-in-context-logout" %>
               </div>
             </details>
           </div>

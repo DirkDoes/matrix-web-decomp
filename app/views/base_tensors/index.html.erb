@@ -1,23 +1,41 @@
 <% content_for :title, "Tensors - Detrix" %>
+<% tensor_count = @base_tensors.length %>
 
 <section class="tensors-page" aria-labelledby="tensors-title">
   <header class="tensors-page-header">
-    <h1 id="tensors-title">Tensors</h1>
+    <div class="tensors-page-title">
+      <h1 id="tensors-title">Tensors</h1>
+      <span class="tensors-count-badge" aria-label="<%= pluralize(tensor_count, "tensor") %>"><%= tensor_count %></span>
+    </div>
+
+    <%= link_to "Create tensor", new_base_tensor_path, class: "btn tensors-create-button", data: { turbo_frame: "app_content", turbo_action: "advance" } %>
+
+    <details class="tensors-page-menu" data-controller="profile-menu">
+      <summary class="app-context-menu-trigger tensors-page-menu-button" aria-label="Open tensor page actions">
+        <span></span>
+        <span></span>
+        <span></span>
+      </summary>
+
+      <div class="app-context-menu tensors-page-menu-panel">
+        <%= link_to "Create tensor", new_base_tensor_path, class: "app-context-menu-item", data: { turbo_frame: "app_content", turbo_action: "advance" } %>
+      </div>
+    </details>
   </header>
 
   <div class="tensor-card-grid">
     <% @base_tensors.each do |base_tensor| %>
       <article class="tensor-card">
         <details class="tensor-card-menu" data-controller="profile-menu">
-          <summary class="tensor-card-menu-button" aria-label="Open tensor actions">
+          <summary class="app-context-menu-trigger tensor-card-menu-button" aria-label="Open tensor actions">
             <span></span>
             <span></span>
             <span></span>
           </summary>
 
-          <div class="tensor-card-menu-panel">
-            <%= link_to "Edit", edit_base_tensor_path(base_tensor), class: "tensor-card-menu-link", data: { turbo_frame: "app_content", turbo_action: "advance" } %>
-            <%= button_to "Delete", base_tensor_path(base_tensor), method: :delete, class: "tensor-card-menu-button-link", form: { data: { turbo_confirm: "Delete this tensor?" } } %>
+          <div class="app-context-menu tensor-card-menu-panel">
+            <%= link_to "Edit", edit_base_tensor_path(base_tensor), class: "app-context-menu-item tensor-card-menu-link", data: { turbo_frame: "app_content", turbo_action: "advance" } %>
+            <%= button_to "Delete", base_tensor_path(base_tensor), method: :delete, class: "app-context-menu-item tensor-card-menu-button-link", form: { data: { turbo_confirm: "Delete this tensor?" } } %>
           </div>
         </details>
 
@@ -38,14 +56,6 @@
           </div>
         <% end %>
       </article>
-    <% end %>
-
-    <%= link_to new_base_tensor_path, class: "tensor-card tensor-card-create", data: { turbo_frame: "app_content", turbo_action: "advance" }, aria: { label: "Create tensor" } do %>
-      <div class="tensor-card-create-preview" aria-hidden="true">
-        <span>+</span>
-      </div>
-
-      <div class="tensor-card-create-body" aria-hidden="true"></div>
     <% end %>
   </div>
 </section>

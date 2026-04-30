@@ -3,6 +3,10 @@ The role of this file is to describe common mistakes and confusion points that a
 
 ## Developer Notes
 
+### Migration Discipline
+- Never alter an existing migration after it has been created unless the developer explicitly asks for that exact change.
+- Schema changes must be made with new migrations so applied environments stay reproducible.
+- Migrations must be deterministic and assert the expected state. Do not guard schema changes with checks such as `column_exists?` or `table_exists?`; if the expected state is wrong, the migration should fail instead of silently leaving an uncertain schema.
 
 ## Agent Notes (Surprises Encountered)
 

@@ -482,3 +482,77 @@ body {
     margin: 0 0.5rem;
     color: #ccc;
 }
+
+/* Global dark base. Page-specific stylesheets can add layout, but not alternate themes. */
+:root {
+    color-scheme: dark;
+    --global-canvas: #131313;
+    --global-context: #0d0d0d;
+    --global-surface: #191919;
+    --global-surface-soft: #222222;
+    --global-text: #f4f4f4;
+    --global-muted: #a9a9a9;
+    --global-radius: 0.45rem;
+}
+
+body {
+    background-color: var(--global-canvas);
+    color: var(--global-text);
+}
+
+:where(.header, .auth-card, .settings-sidebar, .settings-card, .public-auth-card, .tensor-card) {
+    background: var(--global-surface);
+    border: 0;
+    border-radius: var(--global-radius);
+    box-shadow: none;
+}
+
+:where(.btn, button, input, select, textarea, .alert, .badge) {
+    border: 0;
+    border-radius: var(--global-radius);
+    box-shadow: none;
+}
+
+:where(input, select, textarea) {
+    color-scheme: dark;
+    background: var(--global-canvas);
+    color: var(--global-text);
+}
+
+:where(select option, select optgroup) {
+    background: var(--global-canvas);
+    color: var(--global-text);
+}
+
+:where(select option) {
+    padding: 0.55rem 0.65rem;
+}
+
+:where(select[multiple]) {
+    padding: 0.35rem;
+    accent-color: var(--global-text);
+}
+
+:where(select[multiple] option) {
+    margin: 0.15rem 0;
+    border-radius: var(--global-radius);
+}
+
+:where(select option:checked, select option:hover, select option:focus) {
+    background: var(--global-surface-soft);
+    box-shadow: 0 0 0 999px var(--global-surface-soft) inset;
+    color: var(--global-text);
+}
+
+body :is(.header, .auth-card, .settings-sidebar, .settings-card, .public-auth-card, .tensor-card, .dashboard-section, .settings-section) {
+    background: var(--global-surface);
+    border: 0 !important;
+    border-radius: var(--global-radius) !important;
+    box-shadow: none !important;
+}
+
+body :is(.btn, button, input, select, textarea, .alert, .badge, summary) {
+    border: 0 !important;
+    border-radius: var(--global-radius) !important;
+    box-shadow: none !important;
+}

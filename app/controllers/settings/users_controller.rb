@@ -65,7 +65,7 @@ class Settings::UsersController < Settings::BaseController
   end
 
   def user_params
-    allowed_attributes = [:name, :theme_preference]
+    allowed_attributes = [:name]
     allowed_attributes << :role if can_edit_role?
 
     params.require(:user).permit(*allowed_attributes)

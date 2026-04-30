@@ -1,7 +1,6 @@
 class User < ApplicationRecord
   DEFAULT_OWNER_EMAIL = "owner@dev.com"
   DEFAULT_OWNER_PASSWORD = "Owner123!"
-  THEME_PREFERENCES = %w[system light dark].freeze
 
   devise :database_authenticatable,
     :registerable,
@@ -15,7 +14,6 @@ class User < ApplicationRecord
 
   has_many :base_tensors, dependent: :destroy
 
-  validates :theme_preference, inclusion: { in: THEME_PREFERENCES }
   validate :owner_must_remain, if: :owner_role_removed?
 
   before_validation :set_default_name
@@ -41,7 +39,6 @@ class User < ApplicationRecord
     default_owner.assign_attributes(
       name: default_owner.name.presence || "Owner",
       role: :owner,
-      theme_preference: default_owner.theme_preference.presence || "system",
       password: DEFAULT_OWNER_PASSWORD,
       password_confirmation: DEFAULT_OWNER_PASSWORD
     )

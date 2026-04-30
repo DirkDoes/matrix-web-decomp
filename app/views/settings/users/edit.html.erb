@@ -3,10 +3,8 @@
   <%= link_to "← Back", (@user == current_user && !settings_access?) ? overview_path : settings_users_path, class: "settings-back-link" %>
 </div>
 
-<section class="settings-section">
-  <% form_data = @user == current_user ? { controller: "theme-preview", theme_preview_initial_value: @user.theme_preference, action: "change->theme-preview#change submit->theme-preview#submit", turbo_frame: "_top" } : {} %>
-
-  <%= form_with model: @user, url: settings_user_path(@user), class: "settings-form", data: form_data do |f| %>
+<section class="settings-section settings-form-card">
+  <%= form_with model: @user, url: settings_user_path(@user), class: "settings-form" do |f| %>
     <div class="form-group">
       <%= f.label :name %>
       <%= f.text_field :name, required: true %>
@@ -23,34 +21,6 @@
         <%= f.select :role, @role_options.map { |role| [role.capitalize, role] }, {}, class: "form-select" %>
       </div>
     <% end %>
-
-    <fieldset class="form-group theme-choice-group">
-      <legend>Appearance</legend>
-
-      <label class="theme-choice">
-        <%= f.radio_button :theme_preference, "system" %>
-        <span>
-          <strong>Use default mode</strong>
-          <small>Follow the computer or browser light/dark setting.</small>
-        </span>
-      </label>
-
-      <label class="theme-choice">
-        <%= f.radio_button :theme_preference, "light" %>
-        <span>
-          <strong>Light mode</strong>
-          <small>Always use the white interface.</small>
-        </span>
-      </label>
-
-      <label class="theme-choice">
-        <%= f.radio_button :theme_preference, "dark" %>
-        <span>
-          <strong>Dark mode</strong>
-          <small>Always use the black interface.</small>
-        </span>
-      </label>
-    </fieldset>
 
     <div class="form-actions">
       <%= f.submit "Save Changes", class: "btn btn-primary" %>

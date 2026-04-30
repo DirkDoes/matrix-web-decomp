@@ -1,21 +1,22 @@
 :root {
-  color-scheme: light;
-  --public-black: #050505;
-  --public-white: #ffffff;
-  --public-canvas: #f3f4f6;
-  --public-surface: #ffffff;
-  --public-hover: #202020;
-  --public-text: #111111;
-  --public-muted: #666666;
-  --public-border: #dddddd;
-  --public-accent-soft: #f1f3f5;
-  --public-button-bg: #050505;
-  --public-button-text: #ffffff;
-  --public-radius: 12px;
+  color-scheme: dark;
+  --public-black: #131313;
+  --public-white: #f4f4f4;
+  --public-canvas: #131313;
+  --public-context: #0d0d0d;
+  --public-surface: #191919;
+  --public-hover: #252525;
+  --public-text: #f4f4f4;
+  --public-muted: #a9a9a9;
+  --public-border: transparent;
+  --public-accent-soft: #222222;
+  --public-button-bg: #191919;
+  --public-button-text: #f4f4f4;
+  --public-radius: 0.45rem;
 }
 
 body:has(.public-landing) {
-  background: #ffffff;
+  background: var(--public-canvas);
 }
 
 body:has(.public-auth) {
@@ -35,36 +36,32 @@ body:has(.public-auth) {
 
 .app-flash {
   padding: 0.85rem 1rem;
-  border: 1px solid transparent;
-  border-radius: 12px;
+  border: 0;
+  border-radius: var(--public-radius);
   font-size: 0.95rem;
   font-weight: 600;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.06);
+  box-shadow: none;
   animation: app-flash-enter 0.22s ease-out, app-flash-exit 0.24s ease-in 4.6s forwards;
 }
 
 .app-flash-success {
-  background: #f0fdf4;
-  color: #166534;
-  border-color: #bbf7d0;
+  background: #193321;
+  color: #9be7ad;
 }
 
 .app-flash-error {
-  background: #fef2f2;
-  color: #b91c1c;
-  border-color: #fecaca;
+  background: #351c1f;
+  color: #ffb0b8;
 }
 
 .app-flash-warning {
-  background: #fefce8;
-  color: #a16207;
-  border-color: #fde68a;
+  background: #332c17;
+  color: #f0d083;
 }
 
 .app-flash-info {
-  background: #eff6ff;
-  color: #1d4ed8;
-  border-color: #bfdbfe;
+  background: #1b2538;
+  color: #adc8ff;
 }
 
 @keyframes app-flash-enter {
@@ -152,30 +149,28 @@ body:has(.public-auth) {
   justify-content: center;
   min-width: 11rem;
   padding: 0.82rem 1.4rem;
-  border: 1px solid var(--public-button-bg);
+  border: 1px solid var(--public-hover) !important;
   border-radius: var(--public-radius);
   background: var(--public-button-bg);
   color: var(--public-button-text);
   font-weight: 700;
   text-decoration: none;
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .public-login-button:hover {
-  background: var(--public-text);
-  border-color: var(--public-text);
-  color: var(--public-canvas);
+  background: var(--public-hover);
+  color: var(--public-text);
 }
 
 .public-secondary-button {
-  background: transparent;
+  background: var(--public-surface);
   color: var(--public-text);
-  border-color: rgba(17, 17, 17, 0.14);
+  border: 1px solid var(--public-accent-soft) !important;
 }
 
 .public-secondary-button:hover {
   background: var(--public-accent-soft);
-  border-color: rgba(17, 17, 17, 0.18);
   color: var(--public-text);
 }
 
@@ -183,9 +178,9 @@ body:has(.public-auth) {
   width: 100%;
   max-width: 400px;
   padding: 2rem;
-  background: #ffffff;
-  border: 1px solid rgba(17, 17, 17, 0.08);
-  border-radius: 1.5rem;
+  background: var(--public-surface);
+  border: 0;
+  border-radius: var(--public-radius);
   box-shadow: none;
 }
 
@@ -211,8 +206,8 @@ body:has(.public-auth) {
 }
 
 .public-auth-card .form-group input {
-  background: var(--public-surface);
-  border-color: var(--public-border);
+  background: var(--public-canvas);
+  border: 0;
   border-radius: var(--public-radius);
   color: var(--public-text);
   box-shadow: none;
@@ -223,16 +218,15 @@ body:has(.public-auth) {
 }
 
 .public-auth-card .form-group input:focus {
-  border-color: var(--public-text);
   box-shadow: none;
 }
 
 .public-auth-card .btn-primary {
-  border: 1px solid var(--public-button-bg);
+  border: 1px solid var(--public-hover) !important;
   border-radius: var(--public-radius);
   background: var(--public-button-bg);
   color: var(--public-button-text);
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .public-auth-card .btn:hover {
@@ -240,9 +234,8 @@ body:has(.public-auth) {
 }
 
 .public-auth-card .btn-primary:hover {
-  background: var(--public-text);
-  border-color: var(--public-text);
-  color: var(--public-canvas);
+  background: var(--public-hover);
+  color: var(--public-text);
 }
 
 .public-auth-divider {
@@ -261,11 +254,25 @@ body:has(.public-auth) {
   content: "";
   flex: 1;
   height: 1px;
-  background: var(--public-border);
+  background: var(--public-accent-soft);
 }
 
 .public-google-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0 !important;
   border-radius: var(--public-radius);
+}
+
+.public-google-button-icon {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  width: 1.25rem;
+  height: 1.25rem;
+  transform: translateY(-50%);
 }
 
 .verification-code-field {
@@ -282,8 +289,8 @@ body:has(.public-auth) {
   width: 100%;
   aspect-ratio: 1;
   padding: 0;
-  background: var(--public-surface);
-  border: 1px solid var(--public-border);
+  background: var(--public-canvas);
+  border: 0;
   border-radius: var(--public-radius);
   color: var(--public-text);
   font-size: clamp(1.25rem, 6vw, 1.7rem);
@@ -293,7 +300,6 @@ body:has(.public-auth) {
 }
 
 .public-auth-card .verification-code-digit:focus {
-  border-color: var(--public-text);
   box-shadow: none;
 }
 
@@ -330,7 +336,7 @@ body:has(.public-auth) {
   .public-auth-card,
   .public-landing-content {
     padding: 1.5rem;
-    border-radius: 1.5rem;
+    border-radius: var(--public-radius);
   }
 
   .public-landing-actions {

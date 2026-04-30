@@ -5,11 +5,9 @@ one:
   encrypted_password: <%= Devise::Encryptor.digest(User, "Password123!") %>
   name: One User
   role: viewer
-  theme_preference: system
 
 two:
   email: two@example.com
   encrypted_password: <%= Devise::Encryptor.digest(User, "Password123!") %>
   name: Two User
   role: admin
-  theme_preference: dark

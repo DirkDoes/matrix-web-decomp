@@ -1,6 +1,5 @@
-<section class="settings-section tensor-form-page" aria-labelledby="tensor-form-title">
+<section class="tensor-form-page" aria-labelledby="tensor-form-title">
   <header class="settings-header tensor-form-header">
-    <%= link_to "Tensors", base_tensors_path, class: "settings-back-link", data: { turbo_frame: "app_content", turbo_action: "advance" } %>
     <h1 id="tensor-form-title"><%= form_title %></h1>
   </header>
 
@@ -12,7 +11,7 @@
     <% end %>
 
     <div class="tensor-form-grid">
-      <div class="tensor-form-fields">
+      <div class="tensor-form-card tensor-form-fields">
         <div class="form-group">
           <%= form.label :title %>
           <%= form.text_field :title, data: { tensor_form_target: "title" } %>
@@ -82,20 +81,22 @@
         </div>
       </div>
 
-      <div
-        class="tensor-form-preview dashboard-cube-stage"
-        data-controller="tensor-viewer"
-        data-tensor-form-target="preview"
-        data-tensor-viewer-axes-value="false"
-        data-tensor-viewer-editable-value="true"
-        data-tensor-viewer-tensor-value="<%= base_tensor.tensor.to_json %>"
-        data-tensor-viewer-x-count-value="<%= base_tensor.x_count %>"
-        data-tensor-viewer-y-count-value="<%= base_tensor.y_count %>"
-        data-tensor-viewer-z-count-value="<%= base_tensor.z_count %>">
-        <canvas
-          class="dashboard-cube-canvas"
-          data-tensor-viewer-target="canvas"
-          aria-label="Interactive tensor preview"></canvas>
+      <div class="tensor-form-card tensor-form-preview-card">
+        <div
+          class="tensor-form-preview dashboard-cube-stage"
+          data-controller="tensor-viewer"
+          data-tensor-form-target="preview"
+          data-tensor-viewer-axes-value="false"
+          data-tensor-viewer-editable-value="true"
+          data-tensor-viewer-tensor-value="<%= base_tensor.tensor.to_json %>"
+          data-tensor-viewer-x-count-value="<%= base_tensor.x_count %>"
+          data-tensor-viewer-y-count-value="<%= base_tensor.y_count %>"
+          data-tensor-viewer-z-count-value="<%= base_tensor.z_count %>">
+          <canvas
+            class="dashboard-cube-canvas"
+            data-tensor-viewer-target="canvas"
+            aria-label="Interactive tensor preview"></canvas>
+        </div>
       </div>
     </div>
   <% end %>

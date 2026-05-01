@@ -11,8 +11,5 @@ application.register("tensor-viewer", TensorViewerController);
 import TensorFormController from "controllers/tensor_form_controller";
 application.register("tensor-form", TensorFormController);
 
-import TensorPreviewController from "controllers/tensor_preview_controller";
-application.register("tensor-preview", TensorPreviewController);
-
 import SidebarController from "controllers/sidebar_controller";
 application.register("sidebar", SidebarController);

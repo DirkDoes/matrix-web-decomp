@@ -3,7 +3,7 @@ class BaseTensor < ApplicationRecord
 
   DEFAULT_COUNT = 3
   MIN_COUNT = 1
-  MAX_COUNT = 64
+  MAX_COUNT = 50
 
   validates :title, presence: true
   validates :x_count, :y_count, :z_count,
@@ -65,6 +65,8 @@ class BaseTensor < ApplicationRecord
     x_count = a_rows * b_columns
     y_count = a_rows * a_columns
     z_count = b_rows * b_columns
+    return nil if [x_count, y_count, z_count].any? { |count| count > MAX_COUNT }
+
     tensor = blank_tensor(x_count, y_count, z_count)
 
     a_rows.times do |row|

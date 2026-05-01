@@ -41,13 +41,20 @@
 
         <%= link_to base_tensor_path(base_tensor), class: "tensor-card-link", data: { turbo_frame: "app_content", turbo_action: "advance" } do %>
           <div class="tensor-card-preview">
-            <canvas
-              data-controller="tensor-preview"
-              data-tensor-preview-x-count-value="<%= base_tensor.x_count %>"
-              data-tensor-preview-y-count-value="<%= base_tensor.y_count %>"
-              data-tensor-preview-z-count-value="<%= base_tensor.z_count %>"
-              data-tensor-preview-tensor-value="<%= base_tensor.tensor.to_json %>"
-              aria-label="<%= base_tensor.title %> preview"></canvas>
+            <div
+              class="dashboard-cube-stage tensor-card-preview-stage"
+              data-controller="tensor-viewer"
+              data-tensor-viewer-interactive-value="false"
+              data-tensor-viewer-axes-value="false"
+              data-tensor-viewer-x-count-value="<%= base_tensor.x_count %>"
+              data-tensor-viewer-y-count-value="<%= base_tensor.y_count %>"
+              data-tensor-viewer-z-count-value="<%= base_tensor.z_count %>"
+              data-tensor-viewer-tensor-value="<%= base_tensor.tensor.to_json %>">
+              <canvas
+                class="dashboard-cube-canvas"
+                data-tensor-viewer-target="canvas"
+                aria-label="<%= base_tensor.title %> preview"></canvas>
+            </div>
           </div>
 
           <div class="tensor-card-body">

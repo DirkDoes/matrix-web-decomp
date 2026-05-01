@@ -566,6 +566,16 @@ body.logged-in-body :where(.btn, button, input, select, textarea, summary, .tens
   box-shadow: none;
 }
 
+.logged-in-main .form-group input:disabled,
+.logged-in-main .form-group select:disabled,
+.logged-in-main .form-group textarea:disabled,
+.logged-in-main .form-select:disabled {
+  background: var(--app-shell-surface-soft);
+  color: var(--app-shell-muted);
+  opacity: 1;
+  cursor: not-allowed;
+}
+
 .logged-in-main select option,
 .logged-in-main select optgroup {
   background: var(--app-shell-canvas);
@@ -646,9 +656,11 @@ body.logged-in-body :where(.btn, button, input, select, textarea, summary, .tens
   color: var(--app-shell-muted);
 }
 
-.logged-in-main .settings-form .form-group input.disabled {
+.logged-in-main .settings-form .form-group input.disabled,
+.logged-in-main .settings-form .form-group input:disabled {
   background: var(--app-shell-canvas);
   color: var(--app-shell-muted);
+  cursor: not-allowed;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -998,6 +1010,14 @@ body.logged-in-body :where(.btn, button, input, select, textarea, summary, .tens
   height: 100%;
 }
 
+.tensor-card-preview-stage {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  cursor: pointer;
+  touch-action: auto;
+}
+
 .tensor-card-body {
   min-height: 0;
   padding: 0.55rem 1rem 1.1rem;
@@ -1211,6 +1231,13 @@ body.logged-in-body :where(.btn, button, input, select, textarea, summary, .tens
   margin-bottom: 1rem;
   color: var(--app-shell-danger);
   font-weight: 700;
+}
+
+.form-errors ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.2rem;
+  font-weight: 600;
+  line-height: 1.45;
 }
 
 @media (max-width: 960px) {

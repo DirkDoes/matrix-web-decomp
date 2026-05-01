@@ -9,13 +9,12 @@ const AXIS_MOVE_DAMPING = 18;
 const ORTHOGRAPHIC_VIEW_SIZE = 7;
 const DEFAULT_CAMERA_DISTANCE = 10;
 const CAMERA_CLIP_MARGIN = 10;
-const MIN_CAMERA_ZOOM = 0.18;
+const MIN_CAMERA_ZOOM = 0.09;
 const MAX_CAMERA_ZOOM = 1.45;
 const ZOOM_SPEED = 0.00125;
 const DEFAULT_VIEW_FIT_PADDING = 1.45;
 const FOCUSED_VIEW_MAX_ZOOM = 0.72;
 const DEFAULT_TENSOR_COUNT = 3;
-const SLICE_OPACITY_DAMPING = 18;
 const BUTTON_OPACITY_DAMPING = 9;
 const BUTTON_VISIBLE_DELAY = 1000;
 const BUTTON_HIDDEN_DELAY = 1000;
@@ -37,6 +36,7 @@ const TENSOR_VALUE_COLORS = {
   0: null,
   1: "#ff9500"
 };
+const TENSOR_VALUE_KEYS = ["-1", "0", "1"];
 const SELECTED_TENSOR_CUBE_COLOR = 0xffe600;
 const DEFAULT_CUBE_ROTATION = { x: 0.45, y: 0.55, z: 0 };
 
@@ -49,6 +49,7 @@ export default class extends Controller {
     tensor: Array,
     editable: { type: Boolean, default: false },
     axes: { type: Boolean, default: true },
+    interactive: { type: Boolean, default: true },
     focusSelector: String,
     resetAlways: { type: Boolean, default: false }
   };
@@ -73,8 +74,11 @@ export default class extends Controller {
     this.currentTensor = this.normalizedTensor(this.tensorValue);
 
     this.setupScene();
-    this.createResetViewButton();
-    this.setupEvents();
+    if (this.interactiveValue) {
+      this.createResetViewButton();
+      this.setupEvents();
+    }
+    this.setupResizeObserver();
     this.setupThemeObserver();
     this.resize();
     this.animate();
@@ -85,15 +89,17 @@ export default class extends Controller {
     this.resizeObserver?.disconnect();
     this.themeObserver?.disconnect();
 
-    this.element.removeEventListener("pointerdown", this.onPointerDown);
-    this.element.removeEventListener("pointermove", this.onPointerMove);
-    this.element.removeEventListener("pointerup", this.onPointerUp);
-    this.element.removeEventListener("pointercancel", this.onPointerCancel);
-    this.element.removeEventListener("pointerenter", this.onPointerEnter);
-    this.element.removeEventListener("pointerleave", this.onPointerLeave);
-    this.element.removeEventListener("wheel", this.onWheel);
-    this.element.removeEventListener("contextmenu", this.onContextMenu);
-    window.removeEventListener("scroll", this.onWindowScroll);
+    if (this.interactiveValue) {
+      this.element.removeEventListener("pointerdown", this.onPointerDown);
+      this.element.removeEventListener("pointermove", this.onPointerMove);
+      this.element.removeEventListener("pointerup", this.onPointerUp);
+      this.element.removeEventListener("pointercancel", this.onPointerCancel);
+      this.element.removeEventListener("pointerenter", this.onPointerEnter);
+      this.element.removeEventListener("pointerleave", this.onPointerLeave);
+      this.element.removeEventListener("wheel", this.onWheel);
+      this.element.removeEventListener("contextmenu", this.onContextMenu);
+      window.removeEventListener("scroll", this.onWindowScroll);
+    }
     this.resetViewButton?.removeEventListener("pointerdown", this.stopResetButtonPointerDown);
     this.resetViewButton?.removeEventListener("click", this.onResetViewClick);
     this.resetViewButton?.remove();
@@ -101,11 +107,13 @@ export default class extends Controller {
 
     this.geometry?.dispose();
     this.whiteMaterial?.dispose();
-    this.disposeWhiteCubeMaterials();
+    this.disposeWhiteCubeInstances();
     this.disposeButtonMaterials();
     this.buttonGeometry?.dispose();
     this.selectedOutlineGeometry?.dispose();
     this.selectedOutlineMaterial?.dispose();
+    this.orangeMaterial?.dispose();
+    this.blueMaterial?.dispose();
     this.limeMaterial?.dispose();
     this.yellowMaterial?.dispose();
     this.renderer?.dispose();
@@ -161,9 +169,12 @@ export default class extends Controller {
     this.selectedOutlineGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(0.8, 0.8, 0.8));
     this.selectedOutlineMaterial = new THREE.LineBasicMaterial({ color: SELECTED_TENSOR_CUBE_COLOR, transparent: true, opacity: 0.95 });
     this.textureLoader = new THREE.TextureLoader();
+    this.instanceTransform = new THREE.Object3D();
     this.iconTextureColor = null;
     this.updateIconTextures();
-    this.whiteMaterial = new THREE.MeshStandardMaterial({ color: this.tensorCubeColor(), roughness: 0.42, metalness: 0.02, transparent: true });
+    this.whiteMaterial = new THREE.MeshStandardMaterial({ color: this.tensorCubeColor(), roughness: 0.42, metalness: 0.02 });
+    this.orangeMaterial = new THREE.MeshStandardMaterial({ color: TENSOR_VALUE_COLORS[1], roughness: 0.42, metalness: 0.02 });
+    this.blueMaterial = new THREE.MeshStandardMaterial({ color: TENSOR_VALUE_COLORS["-1"], roughness: 0.42, metalness: 0.02 });
     this.limeMaterial = new THREE.MeshStandardMaterial({ color: 0x40ff00, roughness: 0.44, metalness: 0.02 });
     this.yellowMaterial = new THREE.MeshStandardMaterial({ color: 0xffe100, roughness: 0.44, metalness: 0.02 });
     this.cube = new THREE.Group();
@@ -203,7 +214,7 @@ export default class extends Controller {
   }
 
   rebuildCubes(immediate = false) {
-    this.disposeWhiteCubeMaterials();
+    this.disposeWhiteCubeInstances();
     this.disposeButtonMaterials();
     this.cube.clear();
     this.updateCoordinateRanges();
@@ -213,13 +224,15 @@ export default class extends Controller {
     this.zAxisCubes = [];
     this.axisCubes = [];
     this.whiteCubes = [];
-    this.whiteCubeMaterials = [];
+    this.whiteCubeByDrawId = this.emptyTensorDrawMap();
     this.visibilityButtons = [];
     this.visibilityButtonMaterials = [];
     this.clearTensorSelection();
 
     this.addWhiteCubes();
-    this.addVisibilityButtons();
+    if (this.interactiveValue) {
+      this.addVisibilityButtons();
+    }
 
     if (this.axesValue) {
       this.addAxisCubes();
@@ -243,6 +256,14 @@ export default class extends Controller {
   }
 
   addWhiteCubes() {
+    const cubeCount = this.xCoordinates.length * this.yCoordinates.length * this.zCoordinates.length;
+
+    this.tensorInstancedMeshes = {
+      "-1": this.buildTensorInstancedMesh(cubeCount, this.blueMaterial, -1),
+      "0": this.buildTensorInstancedMesh(cubeCount, this.whiteMaterial, 0),
+      "1": this.buildTensorInstancedMesh(cubeCount, this.orangeMaterial, 1)
+    };
+
     this.xCoordinates.forEach((x) => {
       this.yCoordinates.forEach((y) => {
         this.zCoordinates.forEach((z) => {
@@ -250,24 +271,48 @@ export default class extends Controller {
         });
       });
     });
+
+    this.rebuildVisibleTensorInstances();
+  }
+
+  buildTensorInstancedMesh(cubeCount, material, tensorValue) {
+    const mesh = new THREE.InstancedMesh(this.geometry, material, cubeCount);
+
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    mesh.userData.tensorCubeInstances = true;
+    mesh.userData.tensorValue = tensorValue;
+    mesh.count = 0;
+    mesh.visible = false;
+    mesh.frustumCulled = false;
+    this.cube.add(mesh);
+
+    return mesh;
   }
 
   addWhiteCube(x, y, z) {
-    const material = this.whiteMaterial.clone();
-    const cubelet = this.addCube(material, x, y, z);
-
-    material.transparent = true;
-    material.opacity = 1;
-    material.depthWrite = true;
-    this.whiteCubeMaterials.push(material);
-    this.whiteCubes.push(cubelet);
-    cubelet.userData.tensorIndices = {
-      x: this.coordinateIndex(this.xCoordinates, x),
-      y: this.coordinateIndex(this.yCoordinates, y),
-      z: this.coordinateIndex(this.zCoordinates, z)
+    const instanceId = this.whiteCubes.length;
+    const position = new THREE.Vector3(
+      x * CUBE_SPACING,
+      y * CUBE_SPACING,
+      z * CUBE_SPACING
+    );
+    const cubelet = {
+      position,
+      visible: true,
+      userData: {
+        instanceId,
+        tensorIndices: {
+          x: this.coordinateIndex(this.xCoordinates, x),
+          y: this.coordinateIndex(this.yCoordinates, y),
+          z: this.coordinateIndex(this.zCoordinates, z)
+        },
+        targetOpacity: 1
+      }
     };
-    cubelet.userData.targetOpacity = 1;
-    this.syncTensorCubeColor(cubelet);
+
+    this.whiteCubes.push(cubelet);
+    cubelet.userData.drawId = instanceId;
+    cubelet.userData.drawKey = "0";
 
     return cubelet;
   }
@@ -382,6 +427,20 @@ export default class extends Controller {
       y * CUBE_SPACING,
       z * CUBE_SPACING
     );
+  }
+
+  syncTensorCubeMatrix(cubelet) {
+    const mesh = this.tensorInstancedMeshForCubelet(cubelet);
+
+    if (!mesh) return;
+
+    this.instanceTransform.position.copy(cubelet.position);
+    this.instanceTransform.rotation.set(0, 0, 0);
+    this.instanceTransform.scale.setScalar(1);
+    this.instanceTransform.updateMatrix();
+    if (cubelet.userData.drawId == null) return;
+
+    mesh.setMatrixAt(cubelet.userData.drawId, this.instanceTransform.matrix);
   }
 
   updateAxisPositions(immediate = false) {
@@ -601,8 +660,9 @@ export default class extends Controller {
     });
   }
 
-  disposeWhiteCubeMaterials() {
-    this.whiteCubeMaterials?.forEach((material) => material.dispose());
+  disposeWhiteCubeInstances() {
+    this.tensorInstancedMeshes = null;
+    this.whiteCubeByDrawId = this.emptyTensorDrawMap();
   }
 
   disposeButtonMaterials() {
@@ -877,7 +937,9 @@ export default class extends Controller {
     this.element.addEventListener("wheel", this.onWheel, { passive: false });
     this.element.addEventListener("contextmenu", this.onContextMenu);
     window.addEventListener("scroll", this.onWindowScroll, { passive: true });
+  }
 
+  setupResizeObserver() {
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.element);
   }
@@ -890,8 +952,8 @@ export default class extends Controller {
 
   syncTheme() {
     this.whiteMaterial?.color.set(this.tensorCubeColor());
-    this.syncTensorCubeColors();
     this.updateIconTextures();
+    this.renderOnce();
   }
 
   tensorCubeColor() {
@@ -940,20 +1002,24 @@ export default class extends Controller {
   }
 
   tensorCubeHit(event) {
-    if (!this.whiteCubes?.length) return null;
+    if (!this.tensorInstancedMeshes || !this.whiteCubes?.length) return null;
 
     this.setRaycasterFromEvent(event, this.canvasTarget.getBoundingClientRect());
 
-    return this.raycaster.intersectObjects(this.whiteCubes, false).find((hit) => {
-      return this.tensorCubeSelectable(hit.object);
-    })?.object || null;
+    const meshes = Object.values(this.tensorInstancedMeshes).filter((mesh) => mesh.visible && mesh.count > 0);
+    const hit = this.raycaster.intersectObjects(meshes, false).find((candidate) => {
+      const cubelet = this.whiteCubeByDrawId[candidate.object.userData.tensorValue]?.[candidate.instanceId];
+
+      return cubelet && this.tensorCubeSelectable(cubelet);
+    });
+
+    return hit ? this.whiteCubeByDrawId[hit.object.userData.tensorValue]?.[hit.instanceId] || null : null;
   }
 
   tensorCubeSelectable(cubelet) {
     const { x, y, z } = cubelet.userData.tensorIndices;
 
     return cubelet.visible &&
-      cubelet.material.opacity > 0.5 &&
       cubelet.userData.targetOpacity > 0.5 &&
       this.sliceVisibility.x[x] &&
       this.sliceVisibility.y[y] &&
@@ -1066,14 +1132,11 @@ export default class extends Controller {
   }
 
   syncTensorCubeColors() {
-    this.whiteCubes?.forEach((cubelet) => this.syncTensorCubeColor(cubelet));
+    this.rebuildVisibleTensorInstances();
   }
 
   syncTensorCubeColor(cubelet) {
-    const { x, y, z } = cubelet.userData.tensorIndices;
-
-    cubelet.material.color.set(this.tensorColorForValue(this.tensorValueFor(x, y, z)));
-    cubelet.material.needsUpdate = true;
+    return cubelet;
   }
 
   selectTensorCube(cubelet) {
@@ -1156,7 +1219,9 @@ export default class extends Controller {
       const indices = cubelet.userData.tensorIndices;
 
       cubelet.userData.targetOpacity = TENSOR_AXES.every((axis) => this.sliceVisibility[axis][indices[axis]]) ? 1 : 0;
+      cubelet.visible = cubelet.userData.targetOpacity > 0.5;
     });
+    this.rebuildVisibleTensorInstances();
 
     const hiddenSelectedCubes = Array.from(this.selectedTensorCubes || []).filter((cubelet) => cubelet.userData.targetOpacity === 0);
 
@@ -1205,20 +1270,55 @@ export default class extends Controller {
     return coordinates.findIndex((candidate) => candidate === coordinate);
   }
 
+  emptyTensorDrawMap() {
+    return { "-1": [], "0": [], "1": [] };
+  }
+
+  tensorValueKey(value) {
+    return String(this.normalizedTensorValue(value));
+  }
+
+  tensorInstancedMeshForCubelet(cubelet) {
+    return this.tensorInstancedMeshes?.[cubelet.userData.drawKey] || null;
+  }
+
+  rebuildVisibleTensorInstances() {
+    if (!this.tensorInstancedMeshes) return;
+
+    const drawCounts = { "-1": 0, "0": 0, "1": 0 };
+    this.whiteCubeByDrawId = this.emptyTensorDrawMap();
+
+    this.whiteCubes?.forEach((cubelet) => {
+      if (!cubelet.visible) {
+        cubelet.userData.drawId = null;
+        cubelet.userData.drawKey = null;
+        return;
+      }
+
+      const { x, y, z } = cubelet.userData.tensorIndices;
+      const key = this.tensorValueKey(this.tensorValueFor(x, y, z));
+
+      cubelet.userData.drawKey = key;
+      cubelet.userData.drawId = drawCounts[key];
+      this.whiteCubeByDrawId[key][cubelet.userData.drawId] = cubelet;
+      this.syncTensorCubeMatrix(cubelet);
+      drawCounts[key] += 1;
+    });
+
+    TENSOR_VALUE_KEYS.forEach((key) => {
+      const mesh = this.tensorInstancedMeshes[key];
+
+      mesh.count = drawCounts[key];
+      mesh.visible = drawCounts[key] > 0;
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.computeBoundingSphere();
+    });
+  }
+
   renderOnce() {
     if (this.renderer && this.scene && this.camera) {
       this.renderer.render(this.scene, this.camera);
     }
-  }
-
-  updateSliceOpacity(delta) {
-    this.whiteCubes?.forEach((cubelet) => {
-      const targetOpacity = cubelet.userData.targetOpacity ?? 1;
-
-      cubelet.material.opacity = THREE.MathUtils.damp(cubelet.material.opacity, targetOpacity, SLICE_OPACITY_DAMPING, delta);
-      cubelet.material.depthWrite = cubelet.material.opacity > 0.92;
-      cubelet.visible = cubelet.material.opacity > 0.01;
-    });
   }
 
   applyVerticalDrag(deltaY) {
@@ -1357,7 +1457,6 @@ export default class extends Controller {
 
     this.updateResetViewAnimation(delta);
     this.updateVisibilityButtonTargets();
-    this.updateSliceOpacity(delta);
     this.updateAnimatedAxisPositions(delta);
     this.updateAnimatedButtonTransforms(delta);
     this.updateButtonOpacity(delta);

@@ -22,6 +22,8 @@ export default class extends Controller {
 
   connect() {
     this.element.addEventListener("tensor-value-change", this.updateTensorInput);
+    this.element.addEventListener("submit", this.validateBeforeSubmit);
+    this.syncMirroredMatrixDimension();
     this.toggleTemplateFields(this.templateSelectTarget.value);
     this.updateTemplateMessage();
     this.updatePreviewTensor();
@@ -29,6 +31,7 @@ export default class extends Controller {
 
   disconnect() {
     this.element.removeEventListener("tensor-value-change", this.updateTensorInput);
+    this.element.removeEventListener("submit", this.validateBeforeSubmit);
   }
 
   update() {
@@ -64,7 +67,8 @@ export default class extends Controller {
   templateDimensionChanged() {
     if (this.templateSelectTarget.value !== "multiplication") return;
 
-    this.updateTemplateMessage();
+    this.syncMirroredMatrixDimension();
+    if (!this.updateTemplateMessage()) return;
 
     const body = new FormData();
     body.append("a_rows", this.dimensionValue(this.aRowsInputTarget));
@@ -104,6 +108,15 @@ export default class extends Controller {
     });
   };
 
+  validateBeforeSubmit = (event) => {
+    if (this.templateSelectTarget.value !== "multiplication") return;
+    this.syncMirroredMatrixDimension();
+
+    if (this.updateTemplateMessage()) return;
+
+    event.preventDefault();
+  };
+
   toggleTemplateFields(template) {
     this.customFieldsTarget.hidden = template !== "custom";
     this.multiplicationFieldsTarget.hidden = template !== "multiplication";
@@ -113,17 +126,22 @@ export default class extends Controller {
     if (this.templateSelectTarget.value !== "multiplication") {
       this.templateMessageTarget.hidden = true;
       this.templateMessageTarget.textContent = "";
-      return;
+      return true;
     }
 
-    if (this.multiplicationValid()) {
+    this.syncMirroredMatrixDimension();
+
+    const message = this.multiplicationValidationMessage();
+
+    if (!message) {
       this.templateMessageTarget.hidden = true;
       this.templateMessageTarget.textContent = "";
-      return;
+      return true;
     }
 
     this.templateMessageTarget.hidden = false;
-    this.templateMessageTarget.textContent = "Matrix multiplication requires Matrix A columns to equal Matrix B rows.";
+    this.templateMessageTarget.textContent = message;
+    return false;
   }
 
   applyTensorPayload(payload) {
@@ -149,7 +167,41 @@ export default class extends Controller {
     return Number.parseInt(input.value, 10) || 1;
   }
 
-  multiplicationValid() {
-    return this.dimensionValue(this.aColumnsInputTarget) === this.dimensionValue(this.bRowsInputTarget);
+  dimensionMax() {
+    return Number.parseInt(this.xInputTarget.max, 10) || 50;
+  }
+
+  syncMirroredMatrixDimension() {
+    if (!this.hasAColumnsInputTarget || !this.hasBRowsInputTarget) return;
+
+    this.bRowsInputTarget.value = this.dimensionValue(this.aColumnsInputTarget);
+  }
+
+  multiplicationAxisCounts() {
+    const aRows = this.dimensionValue(this.aRowsInputTarget);
+    const aColumns = this.dimensionValue(this.aColumnsInputTarget);
+    const bRows = this.dimensionValue(this.bRowsInputTarget);
+    const bColumns = this.dimensionValue(this.bColumnsInputTarget);
+
+    return {
+      x: aRows * bColumns,
+      y: aRows * aColumns,
+      z: bRows * bColumns
+    };
+  }
+
+  multiplicationValidationMessage() {
+    if (this.dimensionValue(this.aColumnsInputTarget) !== this.dimensionValue(this.bRowsInputTarget)) {
+      return "Matrix multiplication requires Matrix A columns to equal Matrix B rows.";
+    }
+
+    const max = this.dimensionMax();
+    const axes = this.multiplicationAxisCounts();
+
+    if (Object.values(axes).some((count) => count > max)) {
+      return `Generated tensor axes must be ${max} or less. Current size would be ${axes.x} x ${axes.y} x ${axes.z}.`;
+    }
+
+    return "";
   }
 }

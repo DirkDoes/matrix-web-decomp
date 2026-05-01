@@ -81,13 +81,15 @@
         </div>
       </div>
 
-      <div class="tensor-form-card tensor-form-preview-card">
+      <% if base_tensor.persisted? %>
         <div
-          class="tensor-form-preview dashboard-cube-stage"
+          class="tensor-form-preview-background dashboard-cube-stage"
           data-controller="tensor-viewer"
           data-tensor-form-target="preview"
           data-tensor-viewer-axes-value="false"
           data-tensor-viewer-editable-value="true"
+          data-tensor-viewer-focus-selector-value=".tensor-form-preview-anchor"
+          data-tensor-viewer-reset-always-value="true"
           data-tensor-viewer-tensor-value="<%= base_tensor.tensor.to_json %>"
           data-tensor-viewer-x-count-value="<%= base_tensor.x_count %>"
           data-tensor-viewer-y-count-value="<%= base_tensor.y_count %>"
@@ -97,7 +99,26 @@
             data-tensor-viewer-target="canvas"
             aria-label="Interactive tensor preview"></canvas>
         </div>
-      </div>
+        <div class="tensor-form-preview-anchor" aria-hidden="true"></div>
+      <% else %>
+        <div class="tensor-form-card tensor-form-preview-card">
+          <div
+            class="tensor-form-preview dashboard-cube-stage"
+            data-controller="tensor-viewer"
+            data-tensor-form-target="preview"
+            data-tensor-viewer-axes-value="false"
+            data-tensor-viewer-editable-value="true"
+            data-tensor-viewer-tensor-value="<%= base_tensor.tensor.to_json %>"
+            data-tensor-viewer-x-count-value="<%= base_tensor.x_count %>"
+            data-tensor-viewer-y-count-value="<%= base_tensor.y_count %>"
+            data-tensor-viewer-z-count-value="<%= base_tensor.z_count %>">
+            <canvas
+              class="dashboard-cube-canvas"
+              data-tensor-viewer-target="canvas"
+              aria-label="Interactive tensor preview"></canvas>
+          </div>
+        </div>
+      <% end %>
     </div>
   <% end %>
 </section>

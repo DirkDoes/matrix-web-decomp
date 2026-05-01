@@ -74,9 +74,10 @@ body.logged-in-body :where(.btn, button, input, select, textarea, summary, .tens
 }
 
 .logged-in-shell {
+  --logged-in-sidebar-width: 248px;
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
+  grid-template-columns: var(--logged-in-sidebar-width) minmax(0, 1fr);
 }
 
 .logged-in-mobile-topbar {
@@ -811,9 +812,56 @@ body.logged-in-body :where(.btn, button, input, select, textarea, summary, .tens
   height: 100%;
 }
 
+.tensor-view-reset-button {
+  position: absolute;
+  top: var(--tensor-reset-top, 0.75rem);
+  left: var(--tensor-reset-left, 0.75rem);
+  z-index: 10;
+  cursor: pointer;
+}
+
+.tensor-view-reset-button[hidden] {
+  display: none;
+}
+
+.tensor-view-reset-icon {
+  position: relative;
+  width: 1.05rem;
+  height: 1.05rem;
+  border: 2px solid currentColor;
+  border-radius: 999px;
+}
+
+.tensor-view-reset-icon::before,
+.tensor-view-reset-icon::after {
+  content: "";
+  position: absolute;
+  background: currentColor;
+}
+
+.tensor-view-reset-icon::before {
+  left: 50%;
+  top: -0.35rem;
+  bottom: -0.35rem;
+  width: 2px;
+  transform: translateX(-50%);
+}
+
+.tensor-view-reset-icon::after {
+  top: 50%;
+  left: -0.35rem;
+  right: -0.35rem;
+  height: 2px;
+  transform: translateY(-50%);
+}
+
 .tensors-page,
 .tensor-form-page {
   max-width: 1180px;
+}
+
+.tensor-form-page {
+  position: relative;
 }
 
 .tensors-page-header {
@@ -825,6 +873,8 @@ body.logged-in-body :where(.btn, button, input, select, textarea, summary, .tens
 }
 
 .tensor-form-header {
+  position: relative;
+  z-index: 1;
   margin-bottom: 1.8rem;
 }
 
@@ -1015,6 +1065,7 @@ body.logged-in-body :where(.btn, button, input, select, textarea, summary, .tens
   grid-template-columns: minmax(18rem, 26rem) minmax(18rem, 1fr);
   gap: 2rem;
   align-items: start;
+  pointer-events: none;
 }
 
 .tensor-form {
@@ -1028,6 +1079,9 @@ body.logged-in-body :where(.btn, button, input, select, textarea, summary, .tens
 
 .tensor-form-card,
 .tensor-show-card {
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
   background: var(--app-shell-surface);
   border: 0;
   border-radius: var(--app-radius);
@@ -1038,6 +1092,26 @@ body.logged-in-body :where(.btn, button, input, select, textarea, summary, .tens
 .tensor-form-preview-card {
   display: grid;
   place-items: center;
+}
+
+.tensor-form-preview-background,
+.tensor-show-background {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: var(--logged-in-sidebar-width, 248px);
+  z-index: 0;
+  width: auto;
+  min-height: 100vh;
+  aspect-ratio: auto;
+  pointer-events: auto;
+}
+
+.tensor-form-preview-anchor {
+  min-height: min(40rem, calc(100vh - 12rem));
+  aspect-ratio: 1;
+  pointer-events: none;
 }
 
 .tensor-dimension-grid {
@@ -1141,6 +1215,7 @@ body.logged-in-body :where(.btn, button, input, select, textarea, summary, .tens
 
 @media (max-width: 960px) {
   .logged-in-shell {
+    --logged-in-sidebar-width: 0px;
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;
     align-content: start;
@@ -1202,6 +1277,17 @@ body.logged-in-body :where(.btn, button, input, select, textarea, summary, .tens
 
   .tensor-form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .tensor-form-preview-background,
+  .tensor-show-background {
+    top: 3.25rem;
+    left: var(--logged-in-sidebar-width);
+    min-height: calc(100vh - 3.25rem);
+  }
+
+  .tensor-form-preview-anchor {
+    min-height: min(32rem, 80vw);
   }
 
   .logged-in-main {

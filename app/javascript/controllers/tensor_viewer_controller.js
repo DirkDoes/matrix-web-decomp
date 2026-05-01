@@ -8,15 +8,19 @@ const CUBE_SPACING = 0.96;
 const AXIS_MOVE_DAMPING = 18;
 const ORTHOGRAPHIC_VIEW_SIZE = 7;
 const DEFAULT_CAMERA_DISTANCE = 10;
-const MIN_CAMERA_ZOOM = 0.5;
+const CAMERA_CLIP_MARGIN = 10;
+const MIN_CAMERA_ZOOM = 0.18;
 const MAX_CAMERA_ZOOM = 1.45;
-const ZOOM_SPEED = 0.0025;
+const ZOOM_SPEED = 0.00125;
+const DEFAULT_VIEW_FIT_PADDING = 1.45;
+const FOCUSED_VIEW_MAX_ZOOM = 0.72;
 const DEFAULT_TENSOR_COUNT = 3;
 const SLICE_OPACITY_DAMPING = 18;
 const BUTTON_OPACITY_DAMPING = 9;
 const BUTTON_VISIBLE_DELAY = 1000;
 const BUTTON_HIDDEN_DELAY = 1000;
 const CLICK_DRAG_THRESHOLD = 6;
+const RESET_VIEW_DAMPING = 8;
 const BUTTON_SIZE = 0.46;
 const CUBE_SIZE = 0.72;
 const BUTTON_SIDE_OFFSET = 0.82;
@@ -34,6 +38,7 @@ const TENSOR_VALUE_COLORS = {
   1: "#ff9500"
 };
 const SELECTED_TENSOR_CUBE_COLOR = 0xffe600;
+const DEFAULT_CUBE_ROTATION = { x: 0.45, y: 0.55, z: 0 };
 
 export default class extends Controller {
   static targets = ["canvas"];
@@ -43,11 +48,14 @@ export default class extends Controller {
     zCount: Number,
     tensor: Array,
     editable: { type: Boolean, default: false },
-    axes: { type: Boolean, default: true }
+    axes: { type: Boolean, default: true },
+    focusSelector: String,
+    resetAlways: { type: Boolean, default: false }
   };
 
   connect() {
     this.dragging = false;
+    this.dragMode = null;
     this.pointerId = null;
     this.previousPointer = { x: 0, y: 0 };
     this.pendingVerticalDrag = 0;
@@ -60,9 +68,12 @@ export default class extends Controller {
     this.pendingTensorCube = null;
     this.pointerStart = null;
     this.pendingTensorCubeAdditive = false;
+    this.viewChanged = false;
+    this.resetViewTarget = null;
     this.currentTensor = this.normalizedTensor(this.tensorValue);
 
     this.setupScene();
+    this.createResetViewButton();
     this.setupEvents();
     this.setupThemeObserver();
     this.resize();
@@ -81,6 +92,11 @@ export default class extends Controller {
     this.element.removeEventListener("pointerenter", this.onPointerEnter);
     this.element.removeEventListener("pointerleave", this.onPointerLeave);
     this.element.removeEventListener("wheel", this.onWheel);
+    this.element.removeEventListener("contextmenu", this.onContextMenu);
+    window.removeEventListener("scroll", this.onWindowScroll);
+    this.resetViewButton?.removeEventListener("pointerdown", this.stopResetButtonPointerDown);
+    this.resetViewButton?.removeEventListener("click", this.onResetViewClick);
+    this.resetViewButton?.remove();
     this.colorPopup?.remove();
 
     this.geometry?.dispose();
@@ -103,6 +119,7 @@ export default class extends Controller {
     this.currentTensor = this.blankTensor(xCount, yCount, zCount);
     this.rebuildCubes();
     this.camera.zoom = this.defaultCameraZoom();
+    this.resetCameraPosition({ immediate: true });
     this.camera.updateProjectionMatrix();
   }
 
@@ -122,9 +139,10 @@ export default class extends Controller {
       ORTHOGRAPHIC_VIEW_SIZE / 2,
       -ORTHOGRAPHIC_VIEW_SIZE / 2,
       0.1,
-      100
+      1000
     );
-    this.camera.position.set(0, 0, DEFAULT_CAMERA_DISTANCE);
+    this.syncCameraClipping();
+    this.camera.position.copy(this.defaultCameraPosition());
     this.camera.zoom = this.defaultCameraZoom();
     this.camera.updateProjectionMatrix();
 
@@ -150,7 +168,7 @@ export default class extends Controller {
     this.yellowMaterial = new THREE.MeshStandardMaterial({ color: 0xffe100, roughness: 0.44, metalness: 0.02 });
     this.cube = new THREE.Group();
 
-    this.cube.rotation.set(0.45, 0.55, 0);
+    this.cube.rotation.set(DEFAULT_CUBE_ROTATION.x, DEFAULT_CUBE_ROTATION.y, DEFAULT_CUBE_ROTATION.z);
     this.rebuildCubes(true);
     this.scene.add(this.cube);
 
@@ -159,6 +177,29 @@ export default class extends Controller {
     const keyLight = new THREE.DirectionalLight(0xffffff, 2.6);
     keyLight.position.set(3, 4, 5);
     this.scene.add(keyLight);
+  }
+
+  createResetViewButton() {
+    const button = document.createElement("button");
+
+    button.type = "button";
+    button.className = "btn btn-secondary tensor-view-reset-button";
+    button.setAttribute("aria-label", "Center tensor view");
+    button.textContent = "Center";
+
+    this.stopResetButtonPointerDown = (event) => event.stopPropagation();
+    this.onResetViewClick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.resetCameraPosition();
+      this.renderOnce();
+    };
+
+    button.addEventListener("pointerdown", this.stopResetButtonPointerDown);
+    button.addEventListener("click", this.onResetViewClick);
+    this.element.append(button);
+    this.resetViewButton = button;
+    this.syncResetViewButton();
   }
 
   rebuildCubes(immediate = false) {
@@ -657,14 +698,60 @@ export default class extends Controller {
       this.outsideCoordinate("z")
     );
     const objectRadius = furthestCoordinate * CUBE_SPACING + 0.4;
-    const fittedZoom = ORTHOGRAPHIC_VIEW_SIZE / (objectRadius * 2.2);
+    const focusedZoom = this.focusedCameraZoom(objectRadius);
+    const fittedZoom = focusedZoom || ORTHOGRAPHIC_VIEW_SIZE / (objectRadius * 2.9);
+    const maxZoom = focusedZoom ? FOCUSED_VIEW_MAX_ZOOM : 1;
 
-    return THREE.MathUtils.clamp(fittedZoom, MIN_CAMERA_ZOOM, 1);
+    return THREE.MathUtils.clamp(fittedZoom, MIN_CAMERA_ZOOM, maxZoom);
+  }
+
+  sceneBoundingRadius() {
+    const xRadius = this.outsideCoordinate("x") * CUBE_SPACING;
+    const yRadius = this.outsideCoordinate("y") * CUBE_SPACING;
+    const zRadius = this.outsideCoordinate("z") * CUBE_SPACING;
+
+    return Math.hypot(xRadius, yRadius, zRadius) + 1.5;
+  }
+
+  cameraDistance() {
+    return Math.max(DEFAULT_CAMERA_DISTANCE, this.sceneBoundingRadius() + CAMERA_CLIP_MARGIN);
+  }
+
+  syncCameraClipping() {
+    if (!this.camera) return;
+
+    const radius = this.sceneBoundingRadius();
+    const distance = this.cameraDistance();
+
+    this.camera.near = 0.1;
+    this.camera.far = distance + radius + CAMERA_CLIP_MARGIN;
+  }
+
+  focusedCameraZoom(objectRadius) {
+    const focusElement = this.focusElement();
+
+    if (!focusElement || !this.element.isConnected) return null;
+
+    const bounds = this.element.getBoundingClientRect();
+    const focusBounds = focusElement.getBoundingClientRect();
+
+    if (bounds.width <= 0 || bounds.height <= 0 || focusBounds.width <= 0 || focusBounds.height <= 0) {
+      return null;
+    }
+
+    const aspect = bounds.width / bounds.height;
+    const objectDiameter = objectRadius * 2 * DEFAULT_VIEW_FIT_PADDING;
+    const focusWidthZoom = (focusBounds.width / bounds.width) * (ORTHOGRAPHIC_VIEW_SIZE * aspect) / objectDiameter;
+    const focusHeightZoom = (focusBounds.height / bounds.height) * ORTHOGRAPHIC_VIEW_SIZE / objectDiameter;
+
+    return Math.min(focusWidthZoom, focusHeightZoom);
   }
 
   setupEvents() {
     this.onPointerDown = (event) => {
-      const button = this.visibilityButtonHit(event);
+      const isPrimaryPointer = event.button === 0 || event.pointerType === "touch";
+      const isPanPointer = event.button === 1 || event.button === 2;
+      const button = isPrimaryPointer ? this.visibilityButtonHit(event) : null;
 
       if (button) {
         event.preventDefault();
@@ -672,10 +759,12 @@ export default class extends Controller {
         return;
       }
 
-      const tensorCube = this.editableValue && !this.axesValue ? this.tensorCubeHit(event) : null;
+      const tensorCube = isPrimaryPointer && this.editableValue && !this.axesValue ? this.tensorCubeHit(event) : null;
 
+      if (isPanPointer) event.preventDefault();
       this.colorPopup?.remove();
       this.dragging = false;
+      this.dragMode = isPanPointer ? "pan" : "rotate";
       this.pointerId = event.pointerId;
       this.pointerStart = { x: event.clientX, y: event.clientY };
       this.previousPointer = { x: event.clientX, y: event.clientY };
@@ -707,10 +796,19 @@ export default class extends Controller {
       const deltaX = event.clientX - this.previousPointer.x;
       const deltaY = event.clientY - this.previousPointer.y;
 
-      this.cube.rotation.y += deltaX * DRAG_ROTATION_SPEED;
-      this.updateAxisPositions();
-      this.updateVisibilityButtonPositions();
-      this.applyVerticalDrag(deltaY);
+      if (this.dragMode === "pan") {
+        event.preventDefault();
+        this.panCamera(deltaX, deltaY);
+      } else {
+        this.viewChanged = true;
+        this.resetViewTarget = null;
+        this.cube.rotation.y += deltaX * DRAG_ROTATION_SPEED;
+        this.updateAxisPositions();
+        this.updateVisibilityButtonPositions();
+        this.applyVerticalDrag(deltaY);
+        this.syncResetViewButton();
+      }
+
       this.previousPointer = { x: event.clientX, y: event.clientY };
     };
 
@@ -720,6 +818,7 @@ export default class extends Controller {
       const clickedTensorCube = !this.dragging ? this.pendingTensorCube : null;
       const additiveSelection = !this.dragging ? this.pendingTensorCubeAdditive : false;
       this.dragging = false;
+      this.dragMode = null;
       this.pointerId = null;
       this.pointerStart = null;
       this.pendingTensorCube = null;
@@ -740,6 +839,7 @@ export default class extends Controller {
       if (event.pointerId !== this.pointerId) return;
 
       this.dragging = false;
+      this.dragMode = null;
       this.pointerId = null;
       this.pointerStart = null;
       this.pendingTensorCube = null;
@@ -760,6 +860,14 @@ export default class extends Controller {
       this.zoom(event.deltaY);
     };
 
+    this.onContextMenu = (event) => {
+      event.preventDefault();
+    };
+
+    this.onWindowScroll = () => {
+      this.syncFocusPosition();
+    };
+
     this.element.addEventListener("pointerdown", this.onPointerDown);
     this.element.addEventListener("pointermove", this.onPointerMove);
     this.element.addEventListener("pointerup", this.onPointerUp);
@@ -767,6 +875,8 @@ export default class extends Controller {
     this.element.addEventListener("pointerenter", this.onPointerEnter);
     this.element.addEventListener("pointerleave", this.onPointerLeave);
     this.element.addEventListener("wheel", this.onWheel, { passive: false });
+    this.element.addEventListener("contextmenu", this.onContextMenu);
+    window.addEventListener("scroll", this.onWindowScroll, { passive: true });
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.element);
@@ -1128,12 +1238,101 @@ export default class extends Controller {
   }
 
   zoom(deltaY) {
+    this.viewChanged = true;
+    this.resetViewTarget = null;
     this.camera.zoom = THREE.MathUtils.clamp(
       this.camera.zoom - deltaY * ZOOM_SPEED,
       MIN_CAMERA_ZOOM,
       MAX_CAMERA_ZOOM
     );
     this.camera.updateProjectionMatrix();
+    this.syncResetViewButton();
+  }
+
+  panCamera(deltaX, deltaY) {
+    this.viewChanged = true;
+    this.resetViewTarget = null;
+    const bounds = this.element.getBoundingClientRect();
+    const visibleWidth = (this.camera.right - this.camera.left) / this.camera.zoom;
+    const visibleHeight = (this.camera.top - this.camera.bottom) / this.camera.zoom;
+
+    this.camera.position.x -= (deltaX / Math.max(bounds.width, 1)) * visibleWidth;
+    this.camera.position.y += (deltaY / Math.max(bounds.height, 1)) * visibleHeight;
+    this.syncResetViewButton();
+  }
+
+  resetCameraPosition({ immediate = false } = {}) {
+    this.syncCameraClipping();
+    const zoom = this.defaultCameraZoom();
+    const position = this.defaultCameraPosition(zoom);
+    const rotation = new THREE.Euler(DEFAULT_CUBE_ROTATION.x, DEFAULT_CUBE_ROTATION.y, DEFAULT_CUBE_ROTATION.z);
+
+    if (immediate) {
+      this.camera.zoom = zoom;
+      this.camera.position.copy(position);
+      this.camera.updateProjectionMatrix();
+      this.cube?.rotation.copy(rotation);
+      this.updateAxisPositions(true);
+      this.updateVisibilityButtonPositions(true);
+      this.viewChanged = false;
+      this.resetViewTarget = null;
+      this.syncResetViewButton();
+      return;
+    }
+
+    this.resetViewTarget = { position, zoom, rotation };
+    this.syncResetViewButton();
+  }
+
+  defaultCameraPosition(zoom = this.camera?.zoom || this.defaultCameraZoom()) {
+    const position = new THREE.Vector3(0, 0, this.cameraDistance());
+    const focusElement = this.focusElement();
+
+    if (!focusElement || !this.element.isConnected) return position;
+
+    const bounds = this.element.getBoundingClientRect();
+    const focusBounds = focusElement.getBoundingClientRect();
+
+    if (bounds.width <= 0 || bounds.height <= 0 || focusBounds.width <= 0 || focusBounds.height <= 0) {
+      return position;
+    }
+
+    const focusCenterX = focusBounds.left + focusBounds.width / 2;
+    const focusCenterY = focusBounds.top + focusBounds.height / 2;
+    const offsetX = focusCenterX - (bounds.left + bounds.width / 2);
+    const offsetY = focusCenterY - (bounds.top + bounds.height / 2);
+    const visibleWidth = (this.camera.right - this.camera.left) / zoom;
+    const visibleHeight = (this.camera.top - this.camera.bottom) / zoom;
+
+    position.x = -(offsetX / bounds.width) * visibleWidth;
+    position.y = (offsetY / bounds.height) * visibleHeight;
+
+    return position;
+  }
+
+  focusElement() {
+    if (!this.hasFocusSelectorValue || !this.focusSelectorValue) return null;
+
+    return this.element.closest(".tensor-form-page")?.querySelector(this.focusSelectorValue) ||
+      document.querySelector(this.focusSelectorValue);
+  }
+
+  viewIsDefault() {
+    const defaultZoom = this.defaultCameraZoom();
+    const defaultPosition = this.defaultCameraPosition(defaultZoom);
+
+    return Math.abs(this.camera.position.x - defaultPosition.x) <= 0.01 &&
+      Math.abs(this.camera.position.y - defaultPosition.y) <= 0.01 &&
+      Math.abs(this.camera.zoom - defaultZoom) <= 0.01 &&
+      Math.abs(this.cube.rotation.x - DEFAULT_CUBE_ROTATION.x) <= 0.01 &&
+      Math.abs(this.cube.rotation.y - DEFAULT_CUBE_ROTATION.y) <= 0.01 &&
+      Math.abs(this.cube.rotation.z - DEFAULT_CUBE_ROTATION.z) <= 0.01;
+  }
+
+  syncResetViewButton() {
+    if (!this.resetViewButton) return;
+
+    this.resetViewButton.hidden = !this.resetAlwaysValue && this.viewIsDefault();
   }
 
   resize() {
@@ -1148,12 +1347,15 @@ export default class extends Controller {
     this.camera.right = ORTHOGRAPHIC_VIEW_SIZE * aspect / 2;
     this.camera.top = ORTHOGRAPHIC_VIEW_SIZE / 2;
     this.camera.bottom = -ORTHOGRAPHIC_VIEW_SIZE / 2;
+    this.syncCameraClipping();
     this.camera.updateProjectionMatrix();
+    this.syncFocusPosition();
   }
 
   animate() {
     const delta = this.clock.getDelta();
 
+    this.updateResetViewAnimation(delta);
     this.updateVisibilityButtonTargets();
     this.updateSliceOpacity(delta);
     this.updateAnimatedAxisPositions(delta);
@@ -1161,5 +1363,68 @@ export default class extends Controller {
     this.updateButtonOpacity(delta);
     this.renderer.render(this.scene, this.camera);
     this.animationFrame = requestAnimationFrame(() => this.animate());
+  }
+
+  updateResetViewAnimation(delta) {
+    if (!this.resetViewTarget) return;
+
+    const damping = 1 - Math.exp(-RESET_VIEW_DAMPING * delta);
+
+    this.camera.position.lerp(this.resetViewTarget.position, damping);
+    this.camera.zoom = THREE.MathUtils.lerp(this.camera.zoom, this.resetViewTarget.zoom, damping);
+    this.camera.updateProjectionMatrix();
+    this.cube.rotation.x = THREE.MathUtils.lerp(this.cube.rotation.x, this.resetViewTarget.rotation.x, damping);
+    this.cube.rotation.y = THREE.MathUtils.lerp(this.cube.rotation.y, this.resetViewTarget.rotation.y, damping);
+    this.cube.rotation.z = THREE.MathUtils.lerp(this.cube.rotation.z, this.resetViewTarget.rotation.z, damping);
+    this.updateAxisPositions();
+    this.updateVisibilityButtonPositions();
+
+    if (this.viewIsDefault()) {
+      this.camera.zoom = this.resetViewTarget.zoom;
+      this.camera.position.copy(this.resetViewTarget.position);
+      this.camera.updateProjectionMatrix();
+      this.cube.rotation.copy(this.resetViewTarget.rotation);
+      this.updateAxisPositions(true);
+      this.updateVisibilityButtonPositions(true);
+      this.viewChanged = false;
+      this.resetViewTarget = null;
+    }
+
+    this.syncResetViewButton();
+  }
+
+  positionResetViewButton() {
+    if (!this.resetViewButton) return;
+
+    const focusElement = this.focusElement();
+
+    if (!focusElement) {
+      this.resetViewButton.style.removeProperty("--tensor-reset-top");
+      this.resetViewButton.style.removeProperty("--tensor-reset-left");
+      return;
+    }
+
+    const bounds = this.element.getBoundingClientRect();
+    const focusBounds = focusElement.getBoundingClientRect();
+
+    this.resetViewButton.style.setProperty("--tensor-reset-top", `${Math.max(0, focusBounds.top - bounds.top)}px`);
+    this.resetViewButton.style.setProperty("--tensor-reset-left", `${Math.max(0, focusBounds.left - bounds.left)}px`);
+  }
+
+  syncFocusPosition() {
+    this.positionResetViewButton();
+
+    if (!this.viewChanged && !this.resetViewTarget) {
+      const zoom = this.defaultCameraZoom();
+
+      this.camera.zoom = zoom;
+      this.camera.updateProjectionMatrix();
+      this.camera.position.copy(this.defaultCameraPosition(zoom));
+    } else if (this.resetViewTarget) {
+      this.resetViewTarget.zoom = this.defaultCameraZoom();
+      this.resetViewTarget.position = this.defaultCameraPosition(this.resetViewTarget.zoom);
+    }
+
+    this.syncResetViewButton();
   }
 }

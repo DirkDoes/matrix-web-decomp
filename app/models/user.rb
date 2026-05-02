@@ -13,6 +13,7 @@ class User < ApplicationRecord
   enum :role, { viewer: 0, admin: 1, owner: 2 }
 
   has_many :base_tensors, dependent: :destroy
+  has_many :decompositions, dependent: :destroy
 
   validate :owner_must_remain, if: :owner_role_removed?
 

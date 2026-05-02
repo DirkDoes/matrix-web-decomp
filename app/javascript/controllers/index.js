@@ -11,5 +11,8 @@ application.register("tensor-viewer", TensorViewerController);
 import TensorFormController from "controllers/tensor_form_controller";
 application.register("tensor-form", TensorFormController);
 
+import RankEditorController from "controllers/rank_editor_controller";
+application.register("rank-editor", RankEditorController);
+
 import SidebarController from "controllers/sidebar_controller";
 application.register("sidebar", SidebarController);

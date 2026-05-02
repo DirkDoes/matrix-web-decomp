@@ -1,0 +1,38 @@
+<section class="tensor-form-page decomposition-form-page" aria-labelledby="decomposition-form-title">
+  <header class="settings-header tensor-form-header">
+    <h1 id="decomposition-form-title"><%= form_title %></h1>
+  </header>
+
+  <%= form_with model: decomposition, class: "settings-form tensor-form" do |form| %>
+    <% if decomposition.errors.any? %>
+      <div class="form-errors">
+        <p><%= pluralize(decomposition.errors.count, "error") %> prevented this decomposition from being saved.</p>
+        <ul>
+          <% decomposition.errors.full_messages.each do |message| %>
+            <li><%= message %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <div class="tensor-form-card tensor-form-fields decomposition-form-card">
+      <div class="form-group">
+        <%= form.label :name %>
+        <%= form.text_field :name %>
+      </div>
+
+      <div class="form-group">
+        <%= form.label :base_tensor_id, "Tensor" %>
+        <%= form.collection_select :base_tensor_id, @base_tensors, :id, :title, { prompt: "Select tensor" }, disabled: decomposition.persisted?, class: "form-select" %>
+        <% if decomposition.persisted? %>
+          <%= form.hidden_field :base_tensor_id %>
+        <% end %>
+      </div>
+
+      <div class="tensor-form-actions">
+        <%= form.submit class: "btn btn-primary" %>
+        <%= link_to "Cancel", decompositions_path, class: "btn btn-secondary", data: { turbo_frame: "app_content", turbo_action: "advance" } %>
+      </div>
+    </div>
+  <% end %>
+</section>

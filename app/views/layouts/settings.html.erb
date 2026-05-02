@@ -11,18 +11,18 @@
   icon = ->(name) { File.read(Rails.root.join("public/icons/#{name}.svg")).html_safe }
   primary_nav_items = [
     {
-      label: "Dashboard",
-      path: overview_path,
-      key: "dashboard",
-      active: controller_name == "overview",
-      icon: "dashboard"
-    },
-    {
       label: "Tensors",
       path: base_tensors_path,
       key: "tensors",
       active: controller_name == "base_tensors",
       icon: "projects"
+    },
+    {
+      label: "Decompositions",
+      path: decompositions_path,
+      key: "decompositions",
+      active: controller_name == "decompositions",
+      icon: "config"
     }
   ]
 %>

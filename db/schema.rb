@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_30_204000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_01_000200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -24,6 +24,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_30_204000) do
     t.integer "y_count", null: false
     t.integer "z_count", null: false
     t.index ["user_id"], name: "index_base_tensors_on_user_id"
+  end
+
+  create_table "decompositions", force: :cascade do |t|
+    t.bigint "base_tensor_id", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.boolean "solved", default: false, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["base_tensor_id"], name: "index_decompositions_on_base_tensor_id"
+    t.index ["user_id"], name: "index_decompositions_on_user_id"
+  end
+
+  create_table "ranks", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "decomposition_id", null: false
+    t.string "label"
+    t.integer "sequence", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "vectors", default: {}, null: false
+    t.index ["decomposition_id", "sequence"], name: "index_ranks_on_decomposition_id_and_sequence", unique: true
+    t.index ["decomposition_id"], name: "index_ranks_on_decomposition_id"
   end
 
   create_table "users", force: :cascade do |t|
@@ -44,4 +66,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_30_204000) do
   end
 
   add_foreign_key "base_tensors", "users"
+  add_foreign_key "decompositions", "base_tensors"
+  add_foreign_key "decompositions", "users"
+  add_foreign_key "ranks", "decompositions"
 end

@@ -46,7 +46,7 @@ module Authentication
   def ensure_settings_access
     return if settings_access?
 
-    redirect_to overview_path, alert: "You don't have permission to access that page."
+    redirect_to base_tensors_path, alert: "You don't have permission to access that page."
   end
 
   def ensure_owner
@@ -56,6 +56,6 @@ module Authentication
   end
 
   def redirect_authenticated_user
-    redirect_to overview_path if authenticated?
+    redirect_to base_tensors_path if authenticated?
   end
 end

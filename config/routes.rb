@@ -12,5 +12,13 @@ Rails.application.routes.draw do
   resources :base_tensors, path: "tensors" do
     post :template_preview, on: :collection
   end
-  get "overview", to: "overview#show", as: :overview
+  resources :decompositions do
+    member do
+      get :decompose
+      post :duplicate
+      patch :update_ranks
+      match :add_rank, via: [:post, :patch]
+      delete "ranks/:rank_id", to: "decompositions#destroy_rank", as: :rank
+    end
+  end
 end

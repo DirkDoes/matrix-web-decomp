@@ -50,7 +50,7 @@ class Settings::UsersController < Settings::BaseController
     return if editing_self?
     return if settings_access?
 
-    redirect_to overview_path, alert: "You don't have permission to access that page."
+    redirect_to base_tensors_path, alert: "You don't have permission to access that page."
   end
 
   def set_user
@@ -61,7 +61,7 @@ class Settings::UsersController < Settings::BaseController
         manageable_users.find(params[:id])
       end
   rescue ActiveRecord::RecordNotFound
-    redirect_to(settings_access? ? settings_users_path : overview_path, alert: "You don't have permission to manage that user.")
+    redirect_to(settings_access? ? settings_users_path : base_tensors_path, alert: "You don't have permission to manage that user.")
   end
 
   def user_params
@@ -73,7 +73,7 @@ class Settings::UsersController < Settings::BaseController
 
   def after_update_path
     return settings_users_path unless @user == current_user
-    return overview_path unless settings_access?
+    return base_tensors_path unless settings_access?
 
     edit_settings_user_path(@user)
   end

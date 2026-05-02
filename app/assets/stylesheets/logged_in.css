@@ -806,6 +806,23 @@ body.logged-in-body :where(.btn, button, input, select, textarea, summary, .tens
   place-items: center;
 }
 
+.tensor-show-page {
+  display: block;
+  width: 100%;
+  max-width: 1180px;
+}
+
+.tensor-show-header {
+  margin-bottom: 1.8rem;
+}
+
+.tensor-show-center-anchor {
+  width: min(42rem, calc(100vw - var(--logged-in-sidebar-width, 248px) - 5rem));
+  min-height: min(42rem, calc(100vh - 12rem));
+  aspect-ratio: 1;
+  pointer-events: none;
+}
+
 .dashboard-cube-stage {
   position: relative;
   width: min(42rem, 100%);
@@ -1041,10 +1058,47 @@ body.logged-in-body :where(.btn, button, input, select, textarea, summary, .tens
   letter-spacing: 0.02em;
 }
 
+.decomposition-card-link {
+  min-height: 15.8rem;
+  display: grid;
+  grid-template-rows: 10.5rem minmax(0, 1fr);
+}
+
+.decomposition-card-body {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 0.5rem;
+  padding: 1.25rem 1rem 1rem;
+}
+
+.decomposition-card-body p {
+  margin: 0;
+}
+
+.decomposition-status {
+  width: fit-content;
+  margin-top: 0.35rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--app-radius);
+  background: var(--app-shell-surface-soft);
+  color: var(--app-shell-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.decomposition-status.is-solved {
+  color: var(--app-shell-text);
+}
+
+.decomposition-card {
+  min-height: 0;
+}
+
 .tensor-card-menu {
   position: absolute;
-  top: 0.45rem;
-  right: 0.45rem;
+  top: 0.85rem;
+  right: 0.2rem;
   z-index: 20;
 }
 
@@ -1054,7 +1108,7 @@ body.logged-in-body :where(.btn, button, input, select, textarea, summary, .tens
   height: 3rem;
   display: grid;
   place-items: center;
-  grid-template-columns: repeat(3, 0.22rem);
+  grid-template-rows: repeat(3, 0.22rem);
   gap: 0.16rem;
   border-radius: 999px;
   color: var(--tensor-card-text);
@@ -1132,6 +1186,192 @@ body.logged-in-body :where(.btn, button, input, select, textarea, summary, .tens
   min-height: min(40rem, calc(100vh - 12rem));
   aspect-ratio: 1;
   pointer-events: none;
+}
+
+.decomposition-form-card {
+  max-width: 28rem;
+}
+
+.decomposition-page {
+  width: 100%;
+}
+
+.decomposition-workspace {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(18rem, 24rem) minmax(18rem, 1fr);
+  gap: 2rem;
+  align-items: start;
+  min-height: calc(100vh - 5rem);
+  pointer-events: none;
+}
+
+.decomposition-rank-panel {
+  position: relative;
+  z-index: 2;
+  width: min(24rem, 100%);
+  pointer-events: auto;
+}
+
+.decomposition-view-anchor {
+  position: relative;
+  z-index: 2;
+  min-height: min(42rem, calc(100vh - 8rem));
+  aspect-ratio: 1;
+  padding-top: 3.4rem;
+  pointer-events: none;
+}
+
+.decomposition-vector-viewer {
+  --tensor-reset-control-offset: 6.65rem;
+}
+
+.decomposition-rank-panel-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.decomposition-view-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+  width: clamp(15rem, 32vw, 22rem);
+  margin-bottom: 0.5rem;
+  pointer-events: auto;
+}
+
+.decomposition-view-controls .btn {
+  padding-inline: 0.5rem;
+}
+
+.decomposition-view-controls .btn.active {
+  background: var(--app-shell-sidebar-hover);
+  color: var(--app-shell-sidebar-text);
+}
+
+.decomposition-rank-panel-header p {
+  margin: 0;
+  color: var(--app-shell-muted);
+}
+
+.decomposition-naive-badge {
+  margin-left: auto;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--app-radius);
+  background: var(--app-shell-canvas);
+  color: var(--app-shell-muted);
+  font-size: 0.85rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.decomposition-rank-form,
+.decomposition-rank-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.decomposition-rank-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--app-radius);
+  background: var(--app-shell-canvas);
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.decomposition-rank-base-item {
+  width: 100%;
+  color: var(--app-shell-text);
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+}
+
+.decomposition-rank-item.active {
+  background: var(--app-shell-surface-soft);
+  border-color: var(--app-shell-text);
+}
+
+.decomposition-rank-item.is-dragging {
+  opacity: 0.55;
+}
+
+.decomposition-rank-handle {
+  cursor: grab;
+  flex: 0 0 auto;
+  min-width: 0;
+  padding-inline: 0.55rem;
+}
+
+.decomposition-rank-label-input {
+  min-width: 0;
+  flex: 1 1 auto;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: 6px;
+  background: var(--app-shell-surface);
+  color: var(--app-shell-text);
+  font-size: 1rem;
+}
+
+.decomposition-rank-label-input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.decomposition-rank-remove {
+  flex: 0 0 auto;
+}
+
+.decomposition-rank-remove-icon {
+  width: 1rem;
+  height: 1rem;
+  display: block;
+  filter: invert(1);
+}
+
+.decomposition-rank-add {
+  width: 100%;
+  min-height: 3.25rem;
+  justify-content: center;
+}
+
+.decomposition-rank-footer {
+  justify-content: space-between;
+  margin-top: 0.25rem;
+}
+
+.decomposition-solved-badge {
+  width: fit-content;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid currentColor;
+  border-radius: var(--app-radius);
+  font-size: 0.85rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.decomposition-card-badge {
+  margin-top: 0.25rem;
+}
+
+.decomposition-solved-badge.is-unsolved {
+  background: color-mix(in srgb, #ff9500 18%, transparent);
+  color: #ff9500;
+}
+
+.decomposition-solved-badge.is-solved {
+  background: color-mix(in srgb, #2dff72 18%, transparent);
+  color: #2dff72;
 }
 
 .tensor-dimension-grid {
@@ -1306,6 +1546,24 @@ body.logged-in-body :where(.btn, button, input, select, textarea, summary, .tens
     grid-template-columns: 1fr;
   }
 
+  .decomposition-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .decomposition-rank-panel {
+    width: 100%;
+  }
+
+  .decomposition-view-anchor {
+    min-height: min(32rem, 80vw);
+  }
+
+  .decomposition-view-controls {
+    width: min(22rem, calc(100vw - 3rem));
+    margin-left: 0;
+    padding-top: 3.25rem;
+  }
+
   .tensor-form-preview-background,
   .tensor-show-background {
     top: 3.25rem;
@@ -1375,5 +1633,9 @@ body.logged-in-body :where(.btn, button, input, select, textarea, summary, .tens
 
   .tensor-card {
     min-height: 16rem;
+  }
+
+  .decomposition-card {
+    min-height: 0;
   }
 }

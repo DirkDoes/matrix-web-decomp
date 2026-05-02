@@ -1,0 +1,81 @@
+<% content_for :title, "#{@decomposition.name} - Detrix" %>
+<% active_rank = @decomposition.ranks.first %>
+
+<section class="tensor-form-page decomposition-page" aria-labelledby="decomposition-title" data-controller="rank-editor" data-action="rank-vectors-change->rank-editor#rankVectorsChanged" data-rank-editor-viewer-selector-value=".decomposition-vector-viewer" data-rank-editor-initial-rank-id-value="<%= params[:selected_rank_id] %>">
+  <header class="settings-header tensor-form-header">
+    <h1 id="decomposition-title"><%= @decomposition.name %></h1>
+  </header>
+
+  <div
+    class="tensor-show-background dashboard-cube-stage decomposition-vector-viewer"
+    data-controller="tensor-viewer"
+    data-tensor-viewer-editable-value="false"
+    data-tensor-viewer-vector-editable-value="true"
+    data-tensor-viewer-vector-input-selector-value="#rank-<%= active_rank.id %>-vectors"
+    data-tensor-viewer-rank-vectors-value="<%= active_rank.vectors.to_json %>"
+    data-tensor-viewer-focus-selector-value=".decomposition-view-anchor"
+    data-tensor-viewer-reset-always-value="true"
+    data-tensor-viewer-rank-effect-mode-value="unapplied"
+    data-tensor-viewer-decomposition-tensor-value="<%= @decomposition.base_tensor.tensor.to_json %>"
+    data-tensor-viewer-tensor-value="<%= @decomposition.base_tensor.tensor.to_json %>"
+    data-tensor-viewer-x-count-value="<%= @decomposition.base_tensor.x_count %>"
+    data-tensor-viewer-y-count-value="<%= @decomposition.base_tensor.y_count %>"
+    data-tensor-viewer-z-count-value="<%= @decomposition.base_tensor.z_count %>">
+    <canvas class="dashboard-cube-canvas" data-tensor-viewer-target="canvas" aria-label="Editable rank vectors"></canvas>
+  </div>
+
+  <div class="decomposition-workspace">
+    <div class="tensor-form-card decomposition-rank-panel">
+      <header class="decomposition-rank-panel-header">
+        <p><%= @decomposition.base_tensor.title %></p>
+        <span class="decomposition-naive-badge"><%= pluralize(@decomposition.base_tensor.non_zero_count, "naive rank") %></span>
+        <%= link_to "Edit", edit_decomposition_path(@decomposition), class: "btn btn-secondary", data: { turbo_frame: "app_content", turbo_action: "advance" } %>
+      </header>
+
+      <%= form_with url: update_ranks_decomposition_path(@decomposition), method: :patch, class: "decomposition-rank-form", data: { rank_editor_target: "form" } do %>
+        <div class="decomposition-rank-list" data-rank-editor-target="list">
+          <button type="button" class="decomposition-rank-item decomposition-rank-base-item" data-rank-editor-target="baseRow" data-action="rank-editor#selectBase">
+            Base tensor
+          </button>
+
+          <% @decomposition.ranks.each_with_index do |rank, index| %>
+            <div
+              class="decomposition-rank-item"
+              draggable="true"
+              data-rank-editor-target="rank"
+              data-action="click->rank-editor#select dragstart->rank-editor#dragStart dragover->rank-editor#dragOver drop->rank-editor#drop dragend->rank-editor#dragEnd"
+              data-rank-id="<%= rank.id %>"
+              data-vector-input-selector="#rank-<%= rank.id %>-vectors">
+              <%= hidden_field_tag "ranks[#{index}][id]", rank.id %>
+              <%= hidden_field_tag "ranks[#{index}][sequence]", index + 1, data: { rank_editor_target: "sequence" } %>
+              <%= hidden_field_tag "ranks[#{index}][vectors]", rank.vectors.to_json, id: "rank-#{rank.id}-vectors" %>
+
+              <button type="button" class="btn btn-secondary decomposition-rank-handle" aria-label="Drag rank" data-rank-editor-target="handle">::</button>
+              <%= text_field_tag "ranks[#{index}][label]", rank.label.presence || "Rank #{index + 1}", class: "decomposition-rank-label-input", data: { rank_editor_target: "label", generated_label: rank.label.blank?, action: "focus->rank-editor#labelFocus blur->rank-editor#labelBlur" } %>
+              <button type="submit" class="btn btn-secondary decomposition-rank-remove" aria-label="Remove rank" formaction="<%= rank_decomposition_path(@decomposition, rank_id: rank.id) %>" formmethod="post" name="_method" value="delete">
+                <%= image_tag "/icons/trash.svg", alt: "", aria: { hidden: true }, class: "decomposition-rank-remove-icon" %>
+              </button>
+            </div>
+          <% end %>
+
+          <button type="submit" class="btn btn-secondary decomposition-rank-add" aria-label="Add rank" formaction="<%= add_rank_decomposition_path(@decomposition) %>" formmethod="post">+</button>
+        </div>
+
+        <div class="tensor-form-actions decomposition-rank-footer">
+          <%= submit_tag "Save ranks", class: "btn btn-primary" %>
+          <span class="decomposition-solved-badge <%= @decomposition.solved? ? 'is-solved' : 'is-unsolved' %>" data-rank-editor-target="badge">
+            <%= @decomposition.solved? ? "Solved" : "Unsolved" %>
+          </span>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="decomposition-view-anchor">
+      <div class="decomposition-view-controls" role="group" aria-label="Current rank preview mode">
+        <button type="button" class="btn btn-secondary active" data-rank-editor-target="mode" data-mode="unapplied" data-action="rank-editor#setMode">Unapplied</button>
+        <button type="button" class="btn btn-secondary" data-rank-editor-target="mode" data-mode="change" data-action="rank-editor#setMode">Change</button>
+        <button type="button" class="btn btn-secondary" data-rank-editor-target="mode" data-mode="applied" data-action="rank-editor#setMode">Applied</button>
+      </div>
+    </div>
+  </div>
+</section>

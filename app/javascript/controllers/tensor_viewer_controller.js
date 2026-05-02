@@ -38,6 +38,7 @@ const TENSOR_VALUE_COLORS = {
 };
 const TENSOR_VALUE_KEYS = ["-1", "0", "1"];
 const SELECTED_TENSOR_CUBE_COLOR = 0xffe600;
+const RANK_CHANGE_CYCLE_SECONDS = 1.8;
 const DEFAULT_CUBE_ROTATION = { x: 0.45, y: 0.55, z: 0 };
 
 export default class extends Controller {
@@ -50,6 +51,11 @@ export default class extends Controller {
     editable: { type: Boolean, default: false },
     axes: { type: Boolean, default: true },
     interactive: { type: Boolean, default: true },
+    vectorEditable: { type: Boolean, default: false },
+    vectorInputSelector: String,
+    rankVectors: { type: Object, default: {} },
+    decompositionTensor: { type: Array, default: [] },
+    rankEffectMode: { type: String, default: "unapplied" },
     focusSelector: String,
     resetAlways: { type: Boolean, default: false }
   };
@@ -72,6 +78,11 @@ export default class extends Controller {
     this.viewChanged = false;
     this.resetViewTarget = null;
     this.currentTensor = this.normalizedTensor(this.tensorValue);
+    this.decompositionTensor = this.normalizedTensor(this.hasDecompositionTensorValue && this.decompositionTensorValue.length ? this.decompositionTensorValue : this.tensorValue);
+    this.previousRankVectors = [];
+    this.changePulse = 0;
+    this.rankChangePreviewMeshes = null;
+    this.rankChangePreviewMaterials = null;
 
     this.setupScene();
     if (this.interactiveValue) {
@@ -108,7 +119,9 @@ export default class extends Controller {
     this.geometry?.dispose();
     this.whiteMaterial?.dispose();
     this.disposeWhiteCubeInstances();
+    this.disposeRankChangePreview();
     this.disposeButtonMaterials();
+    this.disposeAxisCubeMaterials();
     this.buttonGeometry?.dispose();
     this.selectedOutlineGeometry?.dispose();
     this.selectedOutlineMaterial?.dispose();
@@ -132,8 +145,35 @@ export default class extends Controller {
   }
 
   updateTensor(tensor) {
+    this.decompositionTensor = this.normalizedTensor(tensor);
     this.currentTensor = this.normalizedTensor(tensor);
     this.syncTensorCubeColors();
+    this.renderOnce();
+  }
+
+  loadRankVectors(vectors, inputSelector, previousVectors = []) {
+    this.setAxisCubesVisible(true);
+    this.rankVectorsValue = this.normalizedRankVectors(vectors);
+    this.vectorInputSelectorValue = inputSelector;
+    this.previousRankVectors = previousVectors.map((rankVectors) => this.normalizedRankVectors(rankVectors));
+    this.applyRankPreviewTensor();
+    this.syncAxisCubeColors();
+    this.renderOnce();
+  }
+
+  loadBaseTensor() {
+    this.colorPopup?.remove();
+    this.clearTensorSelection();
+    this.setAxisCubesVisible(false);
+    this.disposeRankChangePreview();
+    this.currentTensor = this.normalizedTensor(this.decompositionTensor);
+    this.syncTensorCubeColors();
+    this.renderOnce();
+  }
+
+  setRankEffectMode(mode) {
+    this.rankEffectModeValue = mode;
+    this.applyRankPreviewTensor();
     this.renderOnce();
   }
 
@@ -215,6 +255,7 @@ export default class extends Controller {
 
   rebuildCubes(immediate = false) {
     this.disposeWhiteCubeInstances();
+    this.disposeRankChangePreview();
     this.disposeButtonMaterials();
     this.cube.clear();
     this.updateCoordinateRanges();
@@ -223,6 +264,7 @@ export default class extends Controller {
     this.xAxisCubes = [];
     this.zAxisCubes = [];
     this.axisCubes = [];
+    this.axisCubeMaterials = [];
     this.whiteCubes = [];
     this.whiteCubeByDrawId = this.emptyTensorDrawMap();
     this.visibilityButtons = [];
@@ -237,6 +279,7 @@ export default class extends Controller {
     if (this.axesValue) {
       this.addAxisCubes();
       this.updateAxisPositions(immediate);
+      this.syncAxisCubeColors();
     }
 
     this.updateVisibilityButtonPositions(immediate);
@@ -390,17 +433,26 @@ export default class extends Controller {
   }
 
   addAxisCubes() {
-    this.yCoordinates.forEach(() => {
-      this.yAxisCubes.push(this.addAxisCube(this.limeMaterial, 0, 0, 0));
+    this.yCoordinates.forEach((_coordinate, index) => {
+      this.yAxisCubes.push(this.addAxisCube(this.axisCubeMaterial("y", index), 0, 0, 0, "y", index));
     });
 
-    this.xCoordinates.forEach(() => {
-      this.xAxisCubes.push(this.addAxisCube(this.yellowMaterial, 0, 0, 0));
+    this.xCoordinates.forEach((_coordinate, index) => {
+      this.xAxisCubes.push(this.addAxisCube(this.axisCubeMaterial("x", index), 0, 0, 0, "x", index));
     });
 
-    this.zCoordinates.forEach(() => {
-      this.zAxisCubes.push(this.addAxisCube(this.limeMaterial, 0, 0, 0));
+    this.zCoordinates.forEach((_coordinate, index) => {
+      this.zAxisCubes.push(this.addAxisCube(this.axisCubeMaterial("z", index), 0, 0, 0, "z", index));
     });
+  }
+
+  axisCubeMaterial(axis, index) {
+    if (!this.vectorEditableValue) return axis === "x" ? this.yellowMaterial : this.limeMaterial;
+
+    const material = new THREE.MeshStandardMaterial({ color: this.vectorColorFor(axis, index), roughness: 0.42, metalness: 0.02 });
+
+    this.axisCubeMaterials.push(material);
+    return material;
   }
 
   addCube(material, x, y, z) {
@@ -412,10 +464,12 @@ export default class extends Controller {
     return cubelet;
   }
 
-  addAxisCube(material, x, y, z) {
+  addAxisCube(material, x, y, z, axis = null, index = null) {
     const cubelet = this.addCube(material, x, y, z);
 
     cubelet.userData.targetPosition = cubelet.position.clone();
+    cubelet.userData.vectorAxis = axis;
+    cubelet.userData.vectorIndex = index;
     this.axisCubes.push(cubelet);
 
     return cubelet;
@@ -647,6 +701,7 @@ export default class extends Controller {
       cubelet.position.y = THREE.MathUtils.damp(cubelet.position.y, cubelet.userData.targetPosition.y, AXIS_MOVE_DAMPING, delta);
       cubelet.position.z = THREE.MathUtils.damp(cubelet.position.z, cubelet.userData.targetPosition.z, AXIS_MOVE_DAMPING, delta);
     });
+    this.syncSelectedOutlines();
   }
 
   updateAnimatedButtonTransforms(delta) {
@@ -665,8 +720,21 @@ export default class extends Controller {
     this.whiteCubeByDrawId = this.emptyTensorDrawMap();
   }
 
+  disposeRankChangePreview() {
+    this.rankChangePreviewMeshes?.forEach((mesh) => {
+      this.cube?.remove(mesh);
+    });
+    this.rankChangePreviewMaterials?.forEach((material) => material.dispose());
+    this.rankChangePreviewMeshes = null;
+    this.rankChangePreviewMaterials = null;
+  }
+
   disposeButtonMaterials() {
     this.visibilityButtonMaterials?.forEach((material) => material.dispose());
+  }
+
+  disposeAxisCubeMaterials() {
+    this.axisCubeMaterials?.forEach((material) => material.dispose());
   }
 
   disposeIconTextures() {
@@ -819,7 +887,14 @@ export default class extends Controller {
         return;
       }
 
+      const vectorCube = isPrimaryPointer && this.vectorEditableValue ? this.vectorCubeHit(event) : null;
       const tensorCube = isPrimaryPointer && this.editableValue && !this.axesValue ? this.tensorCubeHit(event) : null;
+
+      if (vectorCube) {
+        event.preventDefault();
+        this.showVectorPopup(vectorCube, event, { additiveSelection: event.shiftKey });
+        return;
+      }
 
       if (isPanPointer) event.preventDefault();
       this.colorPopup?.remove();
@@ -1016,6 +1091,16 @@ export default class extends Controller {
     return hit ? this.whiteCubeByDrawId[hit.object.userData.tensorValue]?.[hit.instanceId] || null : null;
   }
 
+  vectorCubeHit(event) {
+    if (!this.axisCubes?.length) return null;
+
+    this.setRaycasterFromEvent(event, this.canvasTarget.getBoundingClientRect());
+
+    return this.raycaster.intersectObjects(this.axisCubes, false).find((hit) => {
+      return hit.object.userData.vectorAxis && hit.object.visible;
+    })?.object || null;
+  }
+
   tensorCubeSelectable(cubelet) {
     const { x, y, z } = cubelet.userData.tensorIndices;
 
@@ -1098,6 +1183,217 @@ export default class extends Controller {
     this.colorPopup = popup;
   }
 
+  showVectorPopup(cubelet, event, { additiveSelection = false } = {}) {
+    this.colorPopup?.remove();
+
+    if (additiveSelection) {
+      this.addSelectedTensorCube(cubelet);
+    } else {
+      this.selectOnlyTensorCube(cubelet);
+    }
+
+    const popup = document.createElement("div");
+    popup.className = "tensor-color-popup";
+    popup.addEventListener("pointerdown", (popupEvent) => popupEvent.stopPropagation());
+
+    [0, 1, -1].forEach((value) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "tensor-color-swatch";
+      button.setAttribute("aria-label", `Set vector value to ${value}`);
+      button.addEventListener("click", () => {
+        this.setSelectedVectorCubeValues(value);
+        popup.remove();
+      });
+
+      const swatch = document.createElement("span");
+      swatch.className = "tensor-color-swatch-color";
+      swatch.style.background = this.tensorColorForValue(value);
+
+      const label = document.createElement("span");
+      label.className = "tensor-color-swatch-label";
+      label.textContent = value;
+
+      button.append(swatch, label);
+      popup.append(button);
+    });
+
+    const bounds = this.element.getBoundingClientRect();
+
+    popup.style.left = `${event.clientX - bounds.left}px`;
+    popup.style.top = `${event.clientY - bounds.top}px`;
+    this.element.append(popup);
+    this.colorPopup = popup;
+  }
+
+  setVectorCubeValue(cubelet, value) {
+    const { vectorAxis, vectorIndex } = cubelet.userData;
+    const vectors = this.normalizedRankVectors(this.rankVectorsValue);
+
+    vectors[vectorAxis][vectorIndex] = this.normalizedTensorValue(value);
+    this.rankVectorsValue = vectors;
+    this.syncAxisCubeColors();
+    this.syncVectorInput();
+    this.applyRankPreviewTensor();
+    this.renderOnce();
+  }
+
+  setSelectedVectorCubeValues(value) {
+    const selectedCubes = Array.from(this.selectedTensorCubes || []).filter((cubelet) => cubelet.userData.vectorAxis);
+
+    if (!selectedCubes.length) return;
+
+    const vectors = this.normalizedRankVectors(this.rankVectorsValue);
+
+    selectedCubes.forEach((cubelet) => {
+      const { vectorAxis, vectorIndex } = cubelet.userData;
+
+      vectors[vectorAxis][vectorIndex] = this.normalizedTensorValue(value);
+    });
+    this.rankVectorsValue = vectors;
+    this.syncAxisCubeColors();
+    this.syncVectorInput();
+    this.applyRankPreviewTensor();
+    this.renderOnce();
+  }
+
+  syncAxisCubeColors() {
+    if (!this.vectorEditableValue) return;
+
+    this.axisCubes?.forEach((cubelet) => {
+      const { vectorAxis, vectorIndex } = cubelet.userData;
+
+      if (!vectorAxis) return;
+      cubelet.material.color.set(this.vectorColorFor(vectorAxis, vectorIndex));
+      cubelet.material.needsUpdate = true;
+    });
+  }
+
+  setAxisCubesVisible(visible) {
+    this.axisCubes?.forEach((cubelet) => {
+      cubelet.visible = visible;
+    });
+  }
+
+  syncVectorInput() {
+    if (!this.hasVectorInputSelectorValue) return;
+
+    const input = document.querySelector(this.vectorInputSelectorValue);
+
+    if (input) input.value = JSON.stringify(this.normalizedRankVectors(this.rankVectorsValue));
+    this.element.dispatchEvent(new CustomEvent("rank-vectors-change", { bubbles: true }));
+  }
+
+  normalizedRankVectors(vectors) {
+    const source = vectors || {};
+
+    return Object.fromEntries(TENSOR_AXES.map((axis) => [
+      axis,
+      this.coordinatesFor(axis).map((_coordinate, index) => this.normalizedTensorValue(source?.[axis]?.[index]))
+    ]));
+  }
+
+  vectorColorFor(axis, index) {
+    return this.tensorColorForValue(this.normalizedTensorValue(this.rankVectorsValue?.[axis]?.[index]));
+  }
+
+  applyRankPreviewTensor() {
+    if (!this.vectorEditableValue) return;
+
+    const baseTensor = this.normalizedTensor(this.decompositionTensor);
+    const previousTensor = this.applyRankVectorsToTensor(baseTensor, this.previousRankVectors || []);
+    const mode = this.rankEffectModeValue;
+
+    if (mode === "applied") {
+      this.disposeRankChangePreview();
+      this.currentTensor = this.applyRankVectorsToTensor(previousTensor, [this.rankVectorsValue]);
+    } else if (mode === "change") {
+      const appliedTensor = this.applyRankVectorsToTensor(previousTensor, [this.rankVectorsValue]);
+
+      this.currentTensor = previousTensor;
+      this.syncTensorCubeColors();
+      this.rebuildRankChangePreview(previousTensor, appliedTensor);
+      this.updateRankChangePreviewOpacity();
+      return;
+    } else {
+      this.disposeRankChangePreview();
+      this.currentTensor = previousTensor;
+    }
+
+    this.syncTensorCubeColors();
+  }
+
+  rebuildRankChangePreview(previousTensor, appliedTensor) {
+    this.disposeRankChangePreview();
+
+    const changes = { "-1": [], "0": [], "1": [] };
+
+    this.whiteCubes?.forEach((cubelet) => {
+      const { x, y, z } = cubelet.userData.tensorIndices;
+      const previousValue = this.normalizedTensorValue(previousTensor?.[z]?.[y]?.[x]);
+      const appliedValue = this.normalizedTensorValue(appliedTensor?.[z]?.[y]?.[x]);
+
+      if (previousValue === appliedValue) return;
+      changes[this.tensorValueKey(appliedValue)].push(cubelet);
+    });
+
+    this.rankChangePreviewMaterials = TENSOR_VALUE_KEYS.map((key) => this.rankChangePreviewMaterial(key));
+    this.rankChangePreviewMeshes = TENSOR_VALUE_KEYS.map((key, index) => {
+      const cubelets = changes[key];
+      const mesh = new THREE.InstancedMesh(this.geometry, this.rankChangePreviewMaterials[index], Math.max(cubelets.length, 1));
+
+      mesh.count = cubelets.length;
+      mesh.visible = cubelets.length > 0;
+      mesh.frustumCulled = false;
+      cubelets.forEach((cubelet, instanceIndex) => {
+        this.instanceTransform.position.copy(cubelet.position);
+        this.instanceTransform.rotation.set(0, 0, 0);
+        this.instanceTransform.scale.setScalar(1.015);
+        this.instanceTransform.updateMatrix();
+        mesh.setMatrixAt(instanceIndex, this.instanceTransform.matrix);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      this.cube.add(mesh);
+
+      return mesh;
+    });
+  }
+
+  rankChangePreviewMaterial(valueKey) {
+    return new THREE.MeshStandardMaterial({
+      color: this.tensorColorForValue(Number.parseInt(valueKey, 10)),
+      roughness: 0.42,
+      metalness: 0.02,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false
+    });
+  }
+
+  applyRankVectorsToTensor(tensor, rankVectorsList) {
+    const result = this.normalizedTensor(tensor);
+
+    rankVectorsList.forEach((rankVectors) => {
+      const vectors = this.normalizedRankVectors(rankVectors);
+
+      vectors.z.forEach((zValue, z) => {
+        if (zValue === 0) return;
+
+        vectors.y.forEach((yValue, y) => {
+          if (yValue === 0) return;
+
+          vectors.x.forEach((xValue, x) => {
+            if (xValue === 0) return;
+
+            result[z][y][x] = THREE.MathUtils.clamp(result[z][y][x] + xValue * yValue * zValue, -1, 1);
+          });
+        });
+      });
+    });
+
+    return result;
+  }
+
   setTensorCubeValue(cubelet, value) {
     const { x, y, z } = cubelet.userData.tensorIndices;
 
@@ -1157,6 +1453,12 @@ export default class extends Controller {
     outline.position.copy(cubelet.position);
     this.cube.add(outline);
     this.selectedTensorOutlines.set(cubelet, outline);
+  }
+
+  syncSelectedOutlines() {
+    this.selectedTensorOutlines?.forEach((outline, cubelet) => {
+      outline.position.copy(cubelet.position);
+    });
   }
 
   removeSelectedTensorCube(cubelet) {
@@ -1455,6 +1757,7 @@ export default class extends Controller {
   animate() {
     const delta = this.clock.getDelta();
 
+    this.updateRankChangePreview(delta);
     this.updateResetViewAnimation(delta);
     this.updateVisibilityButtonTargets();
     this.updateAnimatedAxisPositions(delta);
@@ -1462,6 +1765,35 @@ export default class extends Controller {
     this.updateButtonOpacity(delta);
     this.renderer.render(this.scene, this.camera);
     this.animationFrame = requestAnimationFrame(() => this.animate());
+  }
+
+  updateRankChangePreview(delta) {
+    if (!this.vectorEditableValue || this.rankEffectModeValue !== "change") return;
+
+    this.changePulse += delta;
+    this.updateRankChangePreviewOpacity();
+  }
+
+  updateRankChangePreviewOpacity() {
+    if (!this.rankChangePreviewMaterials?.length) return;
+
+    const phase = (this.changePulse % RANK_CHANGE_CYCLE_SECONDS) / RANK_CHANGE_CYCLE_SECONDS;
+    let opacity = 0;
+
+    if (phase < 0.38) {
+      opacity = 0;
+    } else if (phase < 0.58) {
+      opacity = (phase - 0.38) / 0.2;
+    } else if (phase < 0.72) {
+      opacity = 1;
+    } else if (phase < 0.92) {
+      opacity = 1 - (phase - 0.72) / 0.2;
+    }
+
+    this.rankChangePreviewMaterials.forEach((material) => {
+      material.opacity = opacity;
+      material.needsUpdate = true;
+    });
   }
 
   updateResetViewAnimation(delta) {
@@ -1506,8 +1838,13 @@ export default class extends Controller {
     const bounds = this.element.getBoundingClientRect();
     const focusBounds = focusElement.getBoundingClientRect();
 
-    this.resetViewButton.style.setProperty("--tensor-reset-top", `${Math.max(0, focusBounds.top - bounds.top)}px`);
+    this.resetViewButton.style.setProperty("--tensor-reset-top", `${Math.max(0, focusBounds.top - bounds.top + this.resetViewControlOffset())}px`);
     this.resetViewButton.style.setProperty("--tensor-reset-left", `${Math.max(0, focusBounds.left - bounds.left)}px`);
+    this.element.style.setProperty("--tensor-reset-button-offset", `${this.resetViewButton.offsetHeight + 8}px`);
+  }
+
+  resetViewControlOffset() {
+    return Number.parseFloat(getComputedStyle(this.element).getPropertyValue("--tensor-reset-control-offset")) || 0;
   }
 
   syncFocusPosition() {

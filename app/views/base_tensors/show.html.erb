@@ -1,9 +1,16 @@
 <% content_for :title, "#{@base_tensor.title} - Detrix" %>
 
-<section class="dashboard-cube-page tensor-show-page" aria-label="<%= @base_tensor.title %> interactive tensor">
+<section class="dashboard-cube-page tensor-show-page" aria-labelledby="tensor-show-title">
+  <header class="settings-header tensor-form-header tensor-show-header">
+    <h1 id="tensor-show-title"><%= @base_tensor.title %></h1>
+  </header>
+
   <div
     class="tensor-show-background dashboard-cube-stage"
     data-controller="tensor-viewer"
+    data-tensor-viewer-axes-value="false"
+    data-tensor-viewer-editable-value="false"
+    data-tensor-viewer-focus-selector-value=".tensor-show-center-anchor"
     data-tensor-viewer-reset-always-value="true"
     data-tensor-viewer-x-count-value="<%= @base_tensor.x_count %>"
     data-tensor-viewer-y-count-value="<%= @base_tensor.y_count %>"
@@ -11,4 +18,6 @@
     data-tensor-viewer-tensor-value="<%= @base_tensor.tensor.to_json %>">
     <canvas class="dashboard-cube-canvas" data-tensor-viewer-target="canvas" aria-label="Draggable 3D tensor"></canvas>
   </div>
+
+  <div class="tensor-show-center-anchor" aria-hidden="true"></div>
 </section>

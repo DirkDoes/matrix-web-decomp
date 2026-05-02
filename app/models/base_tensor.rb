@@ -1,5 +1,6 @@
 class BaseTensor < ApplicationRecord
   belongs_to :user
+  has_many :decompositions, dependent: :destroy
 
   DEFAULT_COUNT = 3
   MIN_COUNT = 1
@@ -15,6 +16,10 @@ class BaseTensor < ApplicationRecord
 
   def size_label
     "#{x_count} • #{y_count} • #{z_count}"
+  end
+
+  def non_zero_count
+    tensor.flatten.count { |value| value.to_i != 0 }
   end
 
   private

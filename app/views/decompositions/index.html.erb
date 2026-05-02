@@ -1,0 +1,59 @@
+<% content_for :title, "Decompositions - Detrix" %>
+<% decomposition_count = @decompositions.length %>
+
+<section class="decompositions-page tensors-page" aria-labelledby="decompositions-title">
+  <header class="tensors-page-header">
+    <div class="tensors-page-title">
+      <h1 id="decompositions-title">Decompositions</h1>
+      <span class="tensors-count-badge" aria-label="<%= pluralize(decomposition_count, "decomposition") %>"><%= decomposition_count %></span>
+    </div>
+
+    <%= link_to "Create decomposition", new_decomposition_path, class: "btn tensors-create-button", data: { turbo_frame: "app_content", turbo_action: "advance" } %>
+  </header>
+
+  <div class="tensor-card-grid">
+    <% @decompositions.each do |decomposition| %>
+      <article class="tensor-card decomposition-card">
+        <details class="tensor-card-menu" data-controller="profile-menu">
+          <summary class="app-context-menu-trigger tensor-card-menu-button" aria-label="Open decomposition actions">
+            <span></span>
+            <span></span>
+            <span></span>
+          </summary>
+
+          <div class="app-context-menu tensor-card-menu-panel">
+            <%= link_to "Edit", edit_decomposition_path(decomposition), class: "app-context-menu-item", data: { turbo_frame: "app_content", turbo_action: "advance" } %>
+            <%= button_to "Duplicate", duplicate_decomposition_path(decomposition), method: :post, class: "app-context-menu-item tensor-card-menu-button-link" %>
+            <%= button_to "Delete", decomposition_path(decomposition), method: :delete, class: "app-context-menu-item tensor-card-menu-button-link", form: { data: { turbo_confirm: "Delete this decomposition?" } } %>
+          </div>
+        </details>
+
+        <%= link_to decompose_decomposition_path(decomposition), class: "tensor-card-link decomposition-card-link", data: { turbo_frame: "app_content", turbo_action: "advance" } do %>
+          <div class="tensor-card-preview">
+            <div
+              class="dashboard-cube-stage tensor-card-preview-stage"
+              data-controller="tensor-viewer"
+              data-tensor-viewer-interactive-value="false"
+              data-tensor-viewer-axes-value="false"
+              data-tensor-viewer-x-count-value="<%= decomposition.base_tensor.x_count %>"
+              data-tensor-viewer-y-count-value="<%= decomposition.base_tensor.y_count %>"
+              data-tensor-viewer-z-count-value="<%= decomposition.base_tensor.z_count %>"
+              data-tensor-viewer-tensor-value="<%= decomposition.decomposed_tensor.to_json %>">
+              <canvas
+                class="dashboard-cube-canvas"
+                data-tensor-viewer-target="canvas"
+                aria-label="<%= decomposition.name %> decomposed tensor preview"></canvas>
+            </div>
+          </div>
+
+          <div class="tensor-card-body decomposition-card-body">
+            <h2><%= decomposition.name %></h2>
+            <p><%= decomposition.base_tensor.title %></p>
+            <p><%= pluralize(decomposition.ranks.size, "rank") %></p>
+            <span class="decomposition-solved-badge decomposition-card-badge <%= decomposition.solved? ? 'is-solved' : 'is-unsolved' %>"><%= decomposition.solved? ? "Solved" : "Unsolved" %></span>
+          </div>
+        <% end %>
+      </article>
+    <% end %>
+  </div>
+</section>

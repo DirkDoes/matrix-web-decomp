@@ -1,6 +1,6 @@
 <div class="settings-header">
   <h1>Edit User</h1>
-  <%= link_to "← Back", (@user == current_user && !settings_access?) ? overview_path : settings_users_path, class: "settings-back-link" %>
+  <%= link_to "← Back", (@user == current_user && !settings_access?) ? base_tensors_path : settings_users_path, class: "settings-back-link" %>
 </div>
 
 <section class="settings-section settings-form-card">
@@ -24,7 +24,7 @@
 
     <div class="form-actions">
       <%= f.submit "Save Changes", class: "btn btn-primary" %>
-      <%= link_to "Cancel", (@user == current_user && !settings_access?) ? overview_path : settings_users_path, class: "btn btn-secondary" %>
+      <%= link_to "Cancel", (@user == current_user && !settings_access?) ? base_tensors_path : settings_users_path, class: "btn btn-secondary" %>
     </div>
   <% end %>
 </section>
